@@ -26,6 +26,14 @@ The easiest way to install both rEFInd and the Grayscale Minimal theme is by usi
    ```
 4. Follow the on-screen prompts to choose your language, select what to install (rEFInd, the Theme, or both), and pick your favorite background image.
 
+### 🧩 arm64 / boards without EFI variables (e.g. Radxa Dragon Q6A)
+
+Some ARM firmwares expose no EFI variables, so `refind-install` copies files but cannot register a boot entry and the firmware keeps booting the old loader. `install.sh` detects this and installs rEFInd as the fallback loader (`EFI/BOOT/bootaa64.efi`) after saving a backup of the original in `EFI/refind-backup/`, and adds menu entries for the kernels in `/loader/entries`. `uninstall.sh` restores the backup.
+
+### 🪟 Dual boot with Windows 11
+
+`./dualboot.sh [/dev/disk]` analyzes the disk (partition table, free space, ESP), can create an NTFS partition in unallocated space, and guides shrinking the root partition (must be done from a live system, since ext4 cannot shrink while mounted). The ESP is shared; rEFInd detects `EFI/Microsoft` automatically. Windows on the QCS6490 is unofficial: expect missing drivers.
+
 ### 🛠️ Manual Installation (Theme Only)
 
 If you prefer to install the theme manually, ensure you already have rEFInd installed.
@@ -105,6 +113,14 @@ A maneira mais fácil de instalar tanto o rEFInd quanto o tema Grayscale Minimal
    ./install.sh
    ```
 4. Siga as instruções na tela para escolher seu idioma, selecionar o que instalar (rEFInd, o Tema ou ambos) e escolher sua imagem de fundo favorita.
+
+### 🧩 arm64 / placas sem variáveis EFI (ex.: Radxa Dragon Q6A)
+
+Alguns firmwares ARM não expõem variáveis EFI: o `refind-install` copia os arquivos mas não registra a entrada de boot, e o firmware segue iniciando o carregador antigo. O `install.sh` detecta isso e instala o rEFInd como carregador padrão (`EFI/BOOT/bootaa64.efi`), salvando antes um backup do original em `EFI/refind-backup/`, e adiciona entradas para os kernels de `/loader/entries`. O `uninstall.sh` restaura o backup.
+
+### 🪟 Dual boot com Windows 11
+
+`./dualboot.sh [/dev/disco]` analisa o disco (tabela de partições, espaço livre, ESP), cria uma partição NTFS no espaço não alocado e orienta a redução da partição raiz (só a partir de um sistema live, pois o ext4 não encolhe montado). A ESP é compartilhada; o rEFInd detecta `EFI/Microsoft` sozinho. Windows no QCS6490 não é oficial: esperem drivers faltando.
 
 ### 🛠️ Instalação Manual (Apenas o Tema)
 
