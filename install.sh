@@ -56,9 +56,11 @@ install_refind() {
         BKP_DIR="$ESP/EFI/refind-backup"
         if $SUDO test -f "$BOOT_FALLBACK" && ! is_refind_binary "$BOOT_FALLBACK"; then
             $SUDO mkdir -p "$BKP_DIR"
-            $SUDO cp -n "$BOOT_FALLBACK" "$BKP_DIR/boot$PLATFORM.efi.orig"
+            $SUDO test -e "$BKP_DIR/boot$PLATFORM.efi.orig" || $SUDO cp "$BOOT_FALLBACK" "$BKP_DIR/boot$PLATFORM.efi.orig"
             m "Backup saved: $BKP_DIR/boot$PLATFORM.efi.orig" "Backup salvo: $BKP_DIR/boot$PLATFORM.efi.orig"
         fi
+        m "Note: the refind-install ALERT about 'problems detected' is expected here (no EFI variables to register)." \
+          "Nota: o ALERT do refind-install sobre 'problemas detectados' é esperado aqui (não há variáveis EFI para registrar)."
         $SUDO refind-install --usedefault "$ESP_DEV" --yes || return 1
 
         # Em alguns sistemas o refind-install deixa o binário como refind_$PLATFORM.efi
@@ -159,33 +161,73 @@ install_theme() {
         return 1
     fi
 
-    local dir dest include="include themes/$THEME_NAME/theme.conf"
+    local dir
     for dir in $dirs; do
-        dest="$dir/themes/$THEME_NAME"
-        $SUDO rm -rf "$dest"
-        $SUDO mkdir -p "$dest"
-        $SUDO cp -r icons selection_big.png selection_small.png theme.conf "$dest/"
-        $SUDO cp "$BG_CHOICE" "$dest/background.png"
-        $SUDO grep -qxF "$include" "$dir/refind.conf" \
-            || echo "$include" | $SUDO tee -a "$dir/refind.conf" >/dev/null
+        copy_theme "$dir" "$BG_CHOICE"
         ESP_DEV=${ESP_DEV:-$(esp_device "$ESP")}
         add_bls_entries "$dir/refind.conf"
-        echo "-> $dest"
+        echo "-> $dir/themes/$THEME_NAME"
     done
     echo "================================================"
 }
 
-select_background() {
+# --- Detecção de instalação anterior e atualização -------------------------------------------
+# Retorna 0 se encontrou uma instalação (tema e/ou binário) desatualizada e o usuário aceitou atualizar.
+check_existing() {
+    ESP=$(find_esp) || return 1
+    local dir v found="" outdated="" plat; plat=$(refind_platform)
+    for dir in $(find_refind_dirs "$ESP"); do
+        v=$(installed_theme_version "$dir")
+        [ -n "$v" ] && found="$found\n  $dir: $(m "theme version" "versão do tema") $v"
+        [ -n "$v" ] && [ "$v" != "$THEME_VERSION" ] && outdated=1
+    done
+    [ -z "$found" ] && return 1
     echo ""
-    m "Select the background image:" "Selecione a imagem de fundo:"
-    echo "1) Skulls"; echo "2) Fender"; echo "3) Gibson"
-    read -r -p "$(m 'Option (1-3): ' 'Opção (1-3): ')" bg_opt
-    case $bg_opt in
-        1) BG_CHOICE="background.skulls.png" ;;
-        2) BG_CHOICE="background.fender.png" ;;
-        3) BG_CHOICE="background.gibson.png" ;;
-        *) m "Invalid option. Please try again." "Opção inválida. Tente novamente."; select_background ;;
-    esac
+    m "Previous installation detected:" "Instalação anterior detectada:"
+    printf '%b\n' "$found"
+    if [ -z "$outdated" ]; then
+        m "The theme is already up to date ($THEME_VERSION). Use option 2 to change background/resolution." \
+          "O tema já está atualizado ($THEME_VERSION). Use a opção 2 para trocar fundo/resolução."
+        return 1
+    fi
+    m "A newer version is available: $THEME_VERSION." "Há uma versão mais nova: $THEME_VERSION."
+    confirm "Update now (your background choice is kept)?" "Atualizar agora (a escolha de fundo é mantida)?" || return 1
+    update_existing
+}
+
+# Reaplica o tema reaproveitando a imagem escolhida antes (install.info); se não houver, pergunta.
+update_existing() {
+    local dir info prev="" d
+    for dir in $(find_refind_dirs "$ESP"); do
+        info="$dir/themes/$THEME_NAME/install.info"
+        d=$($SUDO sed -n 's/^background=//p' "$info" 2>/dev/null | head -n1)
+        [ -n "$d" ] && [ -f "$d" ] && { prev="$d"; break; }
+    done
+    if [ -n "$prev" ]; then
+        BG_CHOICE="$prev"; m "Keeping previous background: $BG_CHOICE" "Mantendo o fundo anterior: $BG_CHOICE"
+    else
+        choose_background || return 1
+    fi
+    install_theme
+}
+
+# Diagnóstico somente leitura (cole a saída ao pedir ajuda).
+show_status() {
+    LANG_OPT=${LANG_OPT:-en}
+    echo "== rEFInd installer status (read-only) =="
+    echo "arch: $(uname -m) -> $(refind_platform) | UEFI: $([ -d /sys/firmware/efi ] && echo yes || echo no) | NVRAM: $(has_nvram && echo yes || echo no)"
+    echo "installer version: $THEME_VERSION | screen: $(detect_resolution || echo unknown)"
+    ESP=$(find_esp) || { echo "ESP: not found (mounted vfat at /boot/efi, /efi or /boot)"; return 1; }
+    local dev; dev=$(esp_device "$ESP")
+    echo "ESP: $ESP ($dev) | free: $($SUDO df -h --output=avail "$ESP" | tail -n1 | tr -d ' ') of $($SUDO df -h --output=size "$ESP" | tail -n1 | tr -d ' ')"
+    local dir plat; plat=$(refind_platform)
+    for dir in "$ESP/EFI/BOOT" "$ESP/EFI/refind"; do
+        $SUDO test -d "$dir" && echo "$dir: refind.conf=$($SUDO test -f "$dir/refind.conf" && echo yes || echo no) theme=$(installed_theme_version "$dir" | sed 's/^$/none/')"
+    done
+    is_refind_binary "$ESP/EFI/BOOT/boot$plat.efi" && echo "fallback boot$plat.efi: rEFInd" || echo "fallback boot$plat.efi: NOT rEFInd (or missing)"
+    $SUDO test -f "$ESP/EFI/Microsoft/Boot/bootmgfw.efi" && echo "Windows boot manager on this ESP: yes" || echo "Windows boot manager on this ESP: no"
+    echo "-- disks --"; lsblk -o NAME,SIZE,FSTYPE,PARTTYPENAME,LABEL,MOUNTPOINT 2>/dev/null | grep -v loop
+    has_nvram && command -v efibootmgr >/dev/null && { echo "-- efibootmgr --"; $SUDO efibootmgr 2>/dev/null; }
 }
 
 main_menu() {
@@ -195,19 +237,21 @@ main_menu() {
         echo "------------------------------------------------"
         m "What would you like to install?" "O que você gostaria de instalar?"
         m "1) rEFInd Boot Manager" "1) Gerenciador de Inicialização rEFInd"
-        m "2) Grayscale Minimal Theme" "2) Tema Grayscale Minimal"
+        m "2) Grayscale Minimal Theme (also: change background/resolution later)" "2) Tema Grayscale Minimal (também: trocar fundo/resolução depois)"
         m "3) Both (rEFInd + Theme)" "3) Ambos (rEFInd + Tema)"
         m "4) Windows dual-boot helper (disk check/partitioning)" "4) Assistente de dual-boot com Windows (análise/particionamento)"
-        m "5) Quit" "5) Sair"
+        m "5) Portable rEFInd on a USB stick (safe/rescue)" "5) rEFInd portátil em pendrive (seguro/resgate)"
+        m "6) Quit" "6) Sair"
         echo "------------------------------------------------"
-        read -r -p "$(m 'Select an option (1-5): ' 'Selecione uma opção (1-5): ')" option
+        read -r -p "$(m 'Select an option (1-6): ' 'Selecione uma opção (1-6): ')" option
         case $option in
             1) install_refind && m "Installation completed successfully!" "Instalação concluída com sucesso!"; return ;;
-            2) select_background; install_theme && m "Installation completed successfully!" "Instalação concluída com sucesso!"; return ;;
-            3) install_refind && { select_background; install_theme; } \
+            2) choose_background || return; install_theme && m "Installation completed successfully!" "Instalação concluída com sucesso!"; return ;;
+            3) install_refind && { choose_background || return; install_theme; } \
                  && m "Installation completed successfully!" "Instalação concluída com sucesso!"; return ;;
             4) LANG_OPT=$LANG_OPT ./dualboot.sh; return ;;
-            5) m "Installation aborted." "Instalação cancelada."; exit 0 ;;
+            5) LANG_OPT=$LANG_OPT ./portable.sh; return ;;
+            6) m "Installation aborted." "Instalação cancelada."; exit 0 ;;
             *) m "Invalid option. Please try again." "Opção inválida. Tente novamente." ;;
         esac
     done
@@ -219,5 +263,20 @@ if [ "${1:-}" = "--entries" ]; then   # regenera só as entradas de boot geradas
     exit 0
 fi
 
+if [ "${1:-}" = "--background" ]; then   # troca só imagem/resolução do tema já instalado
+    select_language
+    choose_background && install_theme
+    exit $?
+fi
+
+if [ "${1:-}" = "--status" ]; then show_status; exit $?; fi
+
+if [ "${1:-}" = "--update" ]; then   # atualiza uma instalação anterior sem passar pelo menu
+    select_language
+    check_existing || m "Nothing to update." "Nada a atualizar."
+    exit 0
+fi
+
 select_language
+check_existing && exit 0    # instalação anterior encontrada e atualizada
 main_menu

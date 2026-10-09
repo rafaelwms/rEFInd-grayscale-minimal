@@ -7,6 +7,8 @@
 
 ## English
 
+> **Tested on:** Radxa Dragon Q6A (arm64, firmware without EFI variables) with Ubuntu 26.04. The standard x86/NVRAM path calls the stock `refind-install` and has not been exercised by the author yet. Run `./install.sh --status` first for a read-only report of what the installer sees.
+
 ### 🌌 About
 
 A clean, minimalist, and grayscale-focused theme for the [rEFInd](https://www.rodsbooks.com/refind/) boot manager. This theme provides a sleek, monochromatic aesthetic paired with high-quality, AI-generated backgrounds, resulting in a modern multi-boot experience without distractions.
@@ -34,6 +36,10 @@ Some ARM firmwares expose no EFI variables, so `refind-install` copies files but
 
 `./dualboot.sh [/dev/disk]` analyzes the disk (partition table, free space, ESP), can create an NTFS partition in unallocated space, and guides shrinking the root partition (must be done from a live system, since ext4 cannot shrink while mounted). The ESP is shared; rEFInd detects `EFI/Microsoft` automatically. Windows on the QCS6490 is unofficial: expect missing drivers.
 
+### 💾 Portable rEFInd (USB stick)
+
+`./portable.sh` (or option 5 of `install.sh`) installs rEFInd, and optionally the theme, on a USB stick without touching internal disks. Use it as a safety net: if the internal boot breaks, open the firmware boot menu, boot the stick and pick your system. It never lists the disk holding `/`, and erasing a disk requires typing its device name.
+
 ### 🛠️ Manual Installation (Theme Only)
 
 If you prefer to install the theme manually, ensure you already have rEFInd installed.
@@ -56,19 +62,13 @@ If you prefer to install the theme manually, ensure you already have rEFInd inst
 
 ### 🎨 Changing the Background Picture
 
-If you installed via the script, your chosen background was renamed to `background.png`.
+Backgrounds live in `backgrounds/<width>x<height>/` (1280x720, 1920x1080, 2560x1440, 3840x2160), each in three styles (skulls, fender, gibson). The installer detects your screen resolution and offers the matching image (ENTER = automatic; 1920x1080 is the fallback). Using the exact resolution matters: when rEFInd has to rescale, small colored artifacts may appear in dark areas.
 
-If you want to change the background manually later:
-1. Navigate to the theme folder on your EFI partition (`/boot/efi/EFI/refind/themes/rEFInd-grayscale-minimal/`).
-2. You will find three original background options:
-   - `background.skulls.png`
-   - `background.fender.png`
-   - `background.gibson.png`
-3. Simply copy or rename your preferred image to `background.png`, overwriting the existing one.
-4. Alternatively, open `theme.conf` and change the `banner` line to point to the desired image file directly:
-   ```text
-   banner themes/rEFInd-grayscale-minimal/background.skulls.png
-   ```
+To change the image or resolution later:
+```bash
+./install.sh --background
+```
+(or option 2 of the menu). Manually, copy `backgrounds/<resolution>/background.<name>.png` to `themes/rEFInd-grayscale-minimal/background.png` on your EFI partition.
 
 ### 🗑️ Uninstallation (via Script)
 
@@ -94,6 +94,8 @@ To remove the theme (and optionally rEFInd itself):
 ---
 
 ## Português (Brasil)
+
+> **Testado em:** Radxa Dragon Q6A (arm64, firmware sem variáveis EFI) com Ubuntu 26.04. O caminho padrão x86/NVRAM usa o `refind-install` oficial e ainda não foi exercitado pelo autor. Rode `./install.sh --status` antes: é um relatório somente leitura do que o instalador enxerga.
 
 ### 🌌 Sobre
 
@@ -122,6 +124,10 @@ Alguns firmwares ARM não expõem variáveis EFI: o `refind-install` copia os ar
 
 `./dualboot.sh [/dev/disco]` analisa o disco (tabela de partições, espaço livre, ESP), cria uma partição NTFS no espaço não alocado e orienta a redução da partição raiz (só a partir de um sistema live, pois o ext4 não encolhe montado). A ESP é compartilhada; o rEFInd detecta `EFI/Microsoft` sozinho. Windows no QCS6490 não é oficial: esperem drivers faltando.
 
+### 💾 rEFInd portátil (pendrive)
+
+`./portable.sh` (ou a opção 5 do `install.sh`) instala o rEFInd, e opcionalmente o tema, num pendrive sem tocar nos discos internos. Serve de rede de segurança: se o boot interno quebrar, abra o menu de boot do firmware, inicie pelo pendrive e escolha seu sistema. Ele nunca lista o disco que contém `/`, e apagar um disco exige digitar o nome do dispositivo.
+
 ### 🛠️ Instalação Manual (Apenas o Tema)
 
 Se você preferir instalar o tema manualmente, certifique-se de já ter o rEFInd instalado.
@@ -144,19 +150,13 @@ Se você preferir instalar o tema manualmente, certifique-se de já ter o rEFInd
 
 ### 🎨 Trocando a Imagem de Fundo
 
-Se você instalou através do script, o fundo escolhido foi renomeado para `background.png`.
+Os fundos ficam em `backgrounds/<largura>x<altura>/` (1280x720, 1920x1080, 2560x1440, 3840x2160), cada um em três estilos (skulls, fender, gibson). O instalador detecta a resolução da sua tela e oferece a imagem correspondente (ENTER = automático; 1920x1080 é o padrão se não detectar). Usar a resolução exata importa: quando o rEFInd precisa reescalar, podem aparecer pequenos pontos coloridos nas áreas escuras.
 
-Se você quiser alterar o plano de fundo manualmente depois:
-1. Navegue até a pasta do tema na sua partição EFI (`/boot/efi/EFI/refind/themes/rEFInd-grayscale-minimal/`).
-2. Você encontrará três opções de imagens de fundo originais:
-   - `background.skulls.png`
-   - `background.fender.png`
-   - `background.gibson.png`
-3. Simplesmente copie ou renomeie sua imagem preferida para `background.png`, substituindo a existente.
-4. Alternativamente, abra o arquivo `theme.conf` e altere a linha `banner` para apontar diretamente para o arquivo de imagem desejado:
-   ```text
-   banner themes/rEFInd-grayscale-minimal/background.skulls.png
-   ```
+Para trocar a imagem ou a resolução depois:
+```bash
+./install.sh --background
+```
+(ou a opção 2 do menu). Manualmente, copie `backgrounds/<resolução>/background.<nome>.png` para `themes/rEFInd-grayscale-minimal/background.png` na sua partição EFI.
 
 ### 🗑️ Desinstalação (via Script)
 

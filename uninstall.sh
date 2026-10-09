@@ -45,8 +45,8 @@ uninstall_refind() {
             $SUDO rm -f "$fallback"
         fi
         # Arquivos do rEFInd soltos em EFI/BOOT
-        $SUDO rm -rf "$ESP/EFI/BOOT/refind.conf" "$ESP/EFI/BOOT/icons" "$ESP/EFI/BOOT/drivers_$platform" \
-                     "$ESP/EFI/BOOT/themes" "$ESP/EFI/BOOT/keys"
+        $SUDO rm -rf "$ESP/EFI/BOOT/refind.conf" "$ESP/EFI/BOOT/refind.conf-sample" "$ESP/EFI/BOOT/refind_$platform.efi" \
+                     "$ESP/EFI/BOOT/icons" "$ESP/EFI/BOOT/drivers_$platform" "$ESP/EFI/BOOT/themes" "$ESP/EFI/BOOT/keys"
     fi
     $SUDO rm -rf "$ESP/EFI/refind"
 
