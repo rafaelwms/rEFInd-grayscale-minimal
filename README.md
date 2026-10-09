@@ -9,6 +9,8 @@
 
 > **Tested on:** Radxa Dragon Q6A (arm64, firmware without EFI variables) with Ubuntu 26.04. The standard x86/NVRAM path calls the stock `refind-install` and has not been exercised by the author yet. Run `./install.sh --status` first for a read-only report of what the installer sees.
 
+> **Tip:** pressing F10 in rEFInd saves a screenshot (`screenshot_NNN.bmp`) on the EFI partition, about 25 MB each at 4K, and rEFInd never deletes them. Clean up with `./install.sh --clean-screenshots`, especially on small EFI partitions.
+
 ### 🌌 About
 
 A clean, minimalist, and grayscale-focused theme for the [rEFInd](https://www.rodsbooks.com/refind/) boot manager. This theme provides a sleek, monochromatic aesthetic paired with high-quality, AI-generated backgrounds, resulting in a modern multi-boot experience without distractions.
@@ -96,6 +98,8 @@ To remove the theme (and optionally rEFInd itself):
 ## Português (Brasil)
 
 > **Testado em:** Radxa Dragon Q6A (arm64, firmware sem variáveis EFI) com Ubuntu 26.04. O caminho padrão x86/NVRAM usa o `refind-install` oficial e ainda não foi exercitado pelo autor. Rode `./install.sh --status` antes: é um relatório somente leitura do que o instalador enxerga.
+
+> **Dica:** apertar F10 no rEFInd salva um screenshot (`screenshot_NNN.bmp`) na partição EFI, uns 25 MB cada em 4K, e o rEFInd nunca os apaga. Limpe com `./install.sh --clean-screenshots`, principalmente em partições EFI pequenas.
 
 ### 🌌 Sobre
 

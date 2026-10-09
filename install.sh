@@ -231,6 +231,26 @@ show_status() {
     has_nvram && command -v efibootmgr >/dev/null && { echo "-- efibootmgr --"; $SUDO efibootmgr 2>/dev/null; }
 }
 
+# Apaga os screenshots do F10 do rEFInd (screenshot_NNN.bmp na raiz da ESP; ~25 MB cada em 4K).
+clean_screenshots() {
+    [ -z "${LANG_OPT:-}" ] && select_language
+    ESP=$(find_esp) || { m "ESP not found." "ESP não encontrada."; return 1; }
+    local files n size
+    files=$($SUDO find "$ESP" -maxdepth 1 -type f -name 'screenshot_*.bmp' | sort)
+    if [ -z "$files" ]; then
+        m "No screenshots found in $ESP." "Nenhum screenshot encontrado em $ESP."; return 0
+    fi
+    n=$(printf '%s\n' "$files" | wc -l)
+    size=$(printf '%s\n' "$files" | xargs -d '\n' $SUDO du -ch | tail -n1 | cut -f1)
+    m "Found $n screenshot(s) using $size in $ESP:" "Encontrado(s) $n screenshot(s) usando $size em $ESP:"
+    printf '%s\n' "$files" | sed 's#^#  #'
+    confirm "Delete them (only these files)?" "Apagar (somente estes arquivos)?" || { m "Nothing deleted." "Nada foi apagado."; return 0; }
+    $SUDO find "$ESP" -maxdepth 1 -type f -name 'screenshot_*.bmp' -delete
+    sync
+    m "Done. Free space on the ESP: $($SUDO df -h --output=avail "$ESP" | tail -n1 | tr -d ' ')" \
+      "Pronto. Espaço livre na ESP: $($SUDO df -h --output=avail "$ESP" | tail -n1 | tr -d ' ')"
+}
+
 main_menu() {
     while true; do
         echo ""
@@ -271,6 +291,7 @@ if [ "${1:-}" = "--background" ]; then   # troca só imagem/resolução do tema 
 fi
 
 if [ "${1:-}" = "--status" ]; then show_status; exit $?; fi
+if [ "${1:-}" = "--clean-screenshots" ]; then clean_screenshots; exit $?; fi
 
 if [ "${1:-}" = "--update" ]; then   # atualiza uma instalação anterior sem passar pelo menu
     select_language

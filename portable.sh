@@ -77,7 +77,7 @@ $SUDO mkdir -p "$DEST"
 
 # Backup de um eventual carregador já existente no pendrive
 if [ -f "$BIN" ] && ! is_refind_binary "$BIN"; then
-    $SUDO cp -n "$BIN" "$BIN.orig"
+    $SUDO test -e "$BIN.orig" || $SUDO cp "$BIN" "$BIN.orig"
     m "Existing loader saved as $(basename "$BIN").orig" "Carregador existente salvo como $(basename "$BIN").orig"
 fi
 
