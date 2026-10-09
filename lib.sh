@@ -83,7 +83,7 @@ find_esp() {
     fi
     m "EFI partition $dev is not mounted; mounting it temporarily at $ESP_TMP." \
       "A partição EFI $dev não está montada; montando temporariamente em $ESP_TMP." >&2
-    $SUDO mkdir -p "$ESP_TMP" && $SUDO mount -t vfat "$dev" "$ESP_TMP" || return 1
+    $SUDO mkdir -p "$ESP_TMP" && $SUDO mount -t vfat -o "${ESP_MOUNT_OPTS:-rw}" "$dev" "$ESP_TMP" || return 1
     echo "$ESP_TMP"
 }
 

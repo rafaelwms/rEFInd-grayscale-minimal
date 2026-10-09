@@ -214,6 +214,7 @@ update_existing() {
 # Diagnóstico somente leitura (cole a saída ao pedir ajuda).
 show_status() {
     LANG_OPT=${LANG_OPT:-en}
+    ESP_MOUNT_OPTS=ro    # relatório somente leitura: se precisar montar a ESP, monta ro
     echo "== rEFInd installer status (read-only) =="
     echo "arch: $(uname -m) -> $(refind_platform) | UEFI: $([ -d /sys/firmware/efi ] && echo yes || echo no) | NVRAM: $(has_nvram && echo yes || echo no)"
     echo "installer version: $THEME_VERSION | screen: $(detect_resolution || echo unknown)"

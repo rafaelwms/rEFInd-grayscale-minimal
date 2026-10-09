@@ -84,6 +84,16 @@ O usuário quer acompanhar cada passo e fará os commits (não commitar; git sem
 - **Monitor QHD (2560x1440) testado (F10 011/012)**: fundo 3840x2160 REDUZIDO pelo rEFInd (0,67x) sai limpo (zero cor fora dos ícones) => reduzir também é seguro. A fonte é por TELA: como o tema foi instalado com a Radxa em 4K (install.info screen=3840x2160),
   no QHD ficou a de 40px (grande, ~metade da largura; legível). Quem alterna monitores precisa reinstalar (`./install.sh --background`) para o tamanho de fonte do monitor principal; o rEFInd não troca de fonte em tempo de execução.
 
+- **`--update` VALIDADO no Desktop do usuário (x86_64, NVRAM, ESP p5 fora do fstab)** via SSH `rafaelwms@192.168.3.2` (rede interna; Tailscale `ASUS-Ubuntu` também serve). Passos: backup `dd` da ESP (1 GiB, hash do arquivo == hash do device, em `~/esp-desktop-backup-20261008-2239.img` no Desktop), hashes/NVRAM antes e depois.
+  Resultado: tema "legacy" detectado, ESP montada temporariamente (e desmontada ao fim), fundo skulls 4K + fonte 40px + seletor + theme.conf com hashes idênticos ao repositório; pasta antiga (LICENSE/Screenshots) removida; `refind.conf` ganhou só o bloco `scan_delay 1`.
+  **NÃO mudaram**: refind_x64.efi, shimx64.efi, BOOTX64.EFI, bootmgfw.efi, BCD, nem a NVRAM (`efibootmgr -v` idêntico). Falta: reboot do usuário + F10 para ver o visual no Desktop.
+  Lições: o shell de login do Desktop é **zsh** (não separa palavras em loops `for p in "a b"`; usar `ssh ... bash -s`); cuidado com `cmd | cut && echo ok` (o status é do último comando do pipe); `--status` agora monta a ESP em `ro` (`ESP_MOUNT_OPTS`).
+
+- **Desktop após `--update`: 9 F10 (um por opção do menu) VALIDADOS**: 4K, zero pixels coloridos no fundo (141 px coloridos só numa faixa de 5 px na linha dos ícones pequenos), seletor grande e pequeno (disco redondo) visíveis, fonte 40px legível.
+  Menu do Desktop: Windows (bootmgfw em EFI/Microsoft na ESP), Ubuntu, **gatinho = ícone "unknown" do "Fallback Boot Loader"** (`EFI/BOOT/BOOTX64.EFI` é o shim, mesmo hash de `EFI/ubuntu/shimx64.efi` => entrada duplicada do Ubuntu, comportamento padrão do rEFInd), e linha de ferramentas:
+  chip(firmware), chave (MOK), info (about), power (shutdown), reset (reboot) e **chip (firmware) de novo**. Observado: o ícone/entrada "Reboot to Computer Setup Utility" aparece 2x; só o `theme.conf` define `showtools firmware` (refind.conf tem `#showtools` comentado).
+  Causa NÃO confirmada (hipótese: o `showtools firmware` do tema soma-se à lista padrão que já inclui firmware). Correção candidata, não aplicada: remover a linha `showtools` do theme.conf ou listar as ferramentas explicitamente sem repetir; testar 1 reboot. Cosmético.
+
 ## Convenções
 - Textos bilíngues via `m "en" "pt"`. Usar `$SUDO`. Sempre fazer backup antes de sobrescrever algo na ESP.
 - Mudar uma coisa por vez nos testes de boot (cada teste custa um reboot do usuário) e pedir foto/F10 para validar.
