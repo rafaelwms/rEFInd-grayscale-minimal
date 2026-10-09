@@ -6,6 +6,8 @@ THEME_NAME="rEFInd-grayscale-minimal"
 THEME_VERSION=$(cat "$(dirname "${BASH_SOURCE[0]}")/VERSION" 2>/dev/null || echo 0)
 MARK_BEGIN="# BEGIN rEFInd-installer (auto-generated, do not edit)"
 MARK_END="# END rEFInd-installer"
+MARK_WIN_BEGIN="# BEGIN rEFInd-installer-windows (auto-generated, do not edit)"
+MARK_WIN_END="# END rEFInd-installer-windows"
 
 SUDO=""
 [ "$(id -u)" -ne 0 ] && SUDO="sudo"
@@ -89,10 +91,11 @@ find_esp() {
 
 esp_device() { findmnt -rno SOURCE "$1"; }
 
-# Diretórios da ESP que contêm um refind.conf (EFI/refind e/ou EFI/BOOT)
+# Diretórios da ESP que contêm um refind.conf (EFI/refind, EFI/BOOT e/ou EFI/Microsoft/Boot,
+# este último quando o rEFInd ocupa o nome bootmgfw.efi: ver install.sh --windows-loader)
 find_refind_dirs() {
     local esp="$1" d
-    for d in "$esp/EFI/refind" "$esp/EFI/BOOT"; do
+    for d in "$esp/EFI/refind" "$esp/EFI/BOOT" "$esp/EFI/Microsoft/Boot"; do
         $SUDO test -f "$d/refind.conf" && echo "$d"
     done
 }

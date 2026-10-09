@@ -31,6 +31,31 @@ uninstall_refind() {
     local fallback="$ESP/EFI/BOOT/boot$platform.efi"
     local backup="$ESP/EFI/refind-backup/boot$platform.efi.orig"
 
+    # Modo install.sh --windows-loader: devolve o bootmgfw.efi original do Windows ao lugar
+    local ms="$ESP/EFI/Microsoft" msboot="$ESP/EFI/Microsoft/Boot"
+    if is_refind_binary "$msboot/bootmgfw.efi"; then
+        if $SUDO test -f "$ms/bootmgfw.efi" && ! is_refind_binary "$ms/bootmgfw.efi"; then
+            $SUDO cp "$ms/bootmgfw.efi" "$msboot/bootmgfw.efi" && $SUDO sync
+            if $SUDO cmp -s "$ms/bootmgfw.efi" "$msboot/bootmgfw.efi"; then
+                $SUDO rm -rf "$msboot/refind.conf" "$msboot/icons" "$msboot/themes" "$msboot/drivers_$platform" \
+                             "$msboot/refind-installer.info" "$msboot/vars"
+                $SUDO rm -f "$ms/bootmgfw.efi"
+                m "Windows boot manager restored to EFI/Microsoft/Boot/bootmgfw.efi." \
+                  "Gerenciador de boot do Windows restaurado em EFI/Microsoft/Boot/bootmgfw.efi."
+            else
+                m "ERROR: could not restore the Windows loader; leaving everything as is." \
+                  "ERRO: não foi possível restaurar o carregador do Windows; deixando tudo como está."
+                return 1
+            fi
+        else
+            m "WARNING: rEFInd is bootmgfw.efi but the original Windows loader was not found at EFI/Microsoft/bootmgfw.efi." \
+              "AVISO: o rEFInd é o bootmgfw.efi mas o carregador original do Windows não está em EFI/Microsoft/bootmgfw.efi."
+            m "Not removing anything. Restore it from a Windows recovery/ISO (bcdboot) or from your ESP backup." \
+              "Não removi nada. Restaure-o por uma recuperação/ISO do Windows (bcdboot) ou pelo seu backup da ESP."
+            return 1
+        fi
+    fi
+
     # Restaura o carregador original se o rEFInd estiver ocupando o caminho padrão
     if is_refind_binary "$fallback"; then
         if $SUDO test -f "$backup"; then

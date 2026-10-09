@@ -231,6 +231,116 @@ show_status() {
     has_nvram && command -v efibootmgr >/dev/null && { echo "-- efibootmgr --"; $SUDO efibootmgr 2>/dev/null; }
 }
 
+# Apaga os screenshots do F10 do rEFInd (screenshot_NNN.bmp na raiz da ESP; ~25 MB cada em 4K).
+clean_screenshots() {
+    [ -z "${LANG_OPT:-}" ] && select_language
+    ESP=$(find_esp) || { m "ESP not found." "ESP não encontrada."; return 1; }
+    local files n size
+    files=$($SUDO find "$ESP" -maxdepth 1 -type f -name 'screenshot_*.bmp' | sort)
+    if [ -z "$files" ]; then
+        m "No screenshots found in $ESP." "Nenhum screenshot encontrado em $ESP."; return 0
+    fi
+    n=$(printf '%s\n' "$files" | wc -l)
+    size=$(printf '%s\n' "$files" | xargs -d '\n' $SUDO du -ch | tail -n1 | cut -f1)
+    m "Found $n screenshot(s) using $size in $ESP:" "Encontrado(s) $n screenshot(s) usando $size em $ESP:"
+    printf '%s\n' "$files" | sed 's#^#  #'
+    confirm "Delete them (only these files)?" "Apagar (somente estes arquivos)?" || { m "Nothing deleted." "Nada foi apagado."; return 0; }
+    $SUDO find "$ESP" -maxdepth 1 -type f -name 'screenshot_*.bmp' -delete
+    sync
+    m "Done. Free space on the ESP: $($SUDO df -h --output=avail "$ESP" | tail -n1 | tr -d ' ')" \
+      "Pronto. Espaço livre na ESP: $($SUDO df -h --output=avail "$ESP" | tail -n1 | tr -d ' ')"
+}
+
+# --- Modo "Windows loader" ----------------------------------------------------------------
+# Firmwares sem NVRAM (ou com uma entrada própria "Windows Boot Manager") iniciam
+# \EFI\Microsoft\Boot\bootmgfw.efi direto e ignoram o rEFInd em EFI/BOOT. Este modo faz o mesmo que o
+# refind-install no modo BIOS: guarda o bootmgfw.efi original em EFI/Microsoft/bootmgfw.efi e instala o
+# rEFInd com o nome bootmgfw.efi (com configuração, drivers e tema ao lado). Reversível (uninstall.sh).
+
+remove_block() {   # remove_block <arquivo> <inicio> <fim>
+    $SUDO sed -i "\|^${2}\$|,\|^${3}\$|d" "$1"
+}
+
+# Escreve o bloco do modo (ocultar o que duplicaria + boot padrão) em um refind.conf.
+# NÃO cria uma entrada manual do Windows: o rEFInd já detecta sozinho o carregador original movido para
+# EFI/Microsoft/bootmgfw.efi (uma stanza manual aparecia duplicada nos F10 de teste).
+write_windows_block() {   # write_windows_block <dir_do_refind> <padrao: linux|windows|none>
+    local dir="$1" mode="$2" conf="$1/refind.conf"
+    remove_block "$conf" "$MARK_WIN_BEGIN" "$MARK_WIN_END"
+    {
+        printf '\n%s\n' "$MARK_WIN_BEGIN"
+        echo "dont_scan_dirs ESP:/EFI/BOOT,EFI/tools,EFI/refind"
+        case $mode in
+            linux)   echo "default_selection vmlinuz" ;;
+            windows) echo "default_selection bootmgfw" ;;
+            none)    echo "timeout -1" ;;
+        esac
+        printf '%s\n' "$MARK_WIN_END"
+    } | $SUDO tee -a "$conf" >/dev/null
+}
+
+windows_loader() {
+    [ -z "${LANG_OPT:-}" ] && select_language
+    ESP=$(find_esp) || { m "ESP not found." "ESP não encontrada."; return 1; }
+    local plat ms msboot src="" bin="" d f mode opt
+    plat=$(refind_platform); ms="$ESP/EFI/Microsoft"; msboot="$ms/Boot"
+
+    $SUDO test -f "$msboot/bootmgfw.efi" || {
+        m "No Windows boot manager found in $msboot." "Nenhum gerenciador de boot do Windows em $msboot."; return 1; }
+    for d in "$ESP/EFI/BOOT" "$ESP/EFI/refind"; do
+        $SUDO test -f "$d/refind.conf" && { src="$d"; break; }
+    done
+    [ -n "$src" ] || { m "Install rEFInd first (menu option 1)." "Instale o rEFInd primeiro (opção 1 do menu)."; return 1; }
+    for f in "$src/boot$plat.efi" "$src/refind_$plat.efi"; do
+        is_refind_binary "$f" && { bin="$f"; break; }
+    done
+    [ -n "$bin" ] || { m "rEFInd binary not found in $src." "Binário do rEFInd não encontrado em $src."; return 1; }
+
+    echo ""
+    m "Default OS after the timeout:" "Sistema padrão após o tempo de espera:"
+    m "1) Linux (ENTER)" "1) Linux (ENTER)"; m "2) Windows" "2) Windows"; m "3) None: wait for my choice" "3) Nenhum: esperar a minha escolha"
+    read -r -p "$(m 'Option (1-3): ' 'Opção (1-3): ')" opt
+    case $opt in 2) mode=windows ;; 3) mode=none ;; *) mode=linux ;; esac
+
+    # 1) Guardar o gerenciador original do Windows (só se o rEFInd ainda não o substituiu)
+    if is_refind_binary "$msboot/bootmgfw.efi"; then
+        m "bootmgfw.efi is already rEFInd: refreshing its files only." "O bootmgfw.efi já é o rEFInd: só atualizo os arquivos dele."
+        $SUDO test -f "$ms/bootmgfw.efi" || { m "ERROR: original Windows loader not found at $ms/bootmgfw.efi; aborting." \
+            "ERRO: o carregador original do Windows não está em $ms/bootmgfw.efi; abortando."; return 1; }
+    else
+        if $SUDO test -e "$ms/bootmgfw.efi"; then
+            $SUDO cmp -s "$msboot/bootmgfw.efi" "$ms/bootmgfw.efi" || { m "ERROR: $ms/bootmgfw.efi exists and differs; aborting without changes." \
+                "ERRO: $ms/bootmgfw.efi já existe e é diferente; abortando sem alterar nada."; return 1; }
+        else
+            $SUDO cp "$msboot/bootmgfw.efi" "$ms/bootmgfw.efi" && $SUDO sync
+        fi
+        $SUDO cmp -s "$msboot/bootmgfw.efi" "$ms/bootmgfw.efi" || { m "ERROR: backup of the Windows loader failed; nothing was changed." \
+            "ERRO: o backup do carregador do Windows falhou; nada foi alterado."; return 1; }
+        m "Original Windows loader saved at EFI/Microsoft/bootmgfw.efi (verified)." "Carregador original do Windows guardado em EFI/Microsoft/bootmgfw.efi (verificado)."
+    fi
+
+    # 2) Arquivos do rEFInd ao lado do novo bootmgfw.efi (o rEFInd lê configuração e drivers da própria pasta)
+    local item
+    for item in refind.conf "drivers_$plat" icons themes; do
+        $SUDO test -e "$src/$item" || continue
+        $SUDO rm -rf "$msboot/$item"
+        $SUDO cp -r "$src/$item" "$msboot/$item"
+    done
+    $SUDO cp "$bin" "$msboot/bootmgfw.efi" && $SUDO sync
+    $SUDO cmp -s "$bin" "$msboot/bootmgfw.efi" || { m "ERROR: copy of rEFInd failed. Restore with: sudo cp $ms/bootmgfw.efi $msboot/bootmgfw.efi" \
+        "ERRO: a cópia do rEFInd falhou. Restaure com: sudo cp $ms/bootmgfw.efi $msboot/bootmgfw.efi"; return 1; }
+    printf 'rEFInd installer windows-loader mode\ninstalled=%s\n' "$(date +%F_%T)" | $SUDO tee "$msboot/refind-installer.info" >/dev/null
+
+    # 3) Configuração das duas cópias (EFI/BOOT ou EFI/refind, e EFI/Microsoft/Boot)
+    ESP_DEV=${ESP_DEV:-$(esp_device "$ESP")}
+    for d in "$src" "$msboot"; do write_windows_block "$d" "$mode"; done
+
+    m "Done. rEFInd now also runs when the firmware starts the Windows boot manager." \
+      "Pronto. O rEFInd agora também roda quando o firmware inicia o gerenciador de boot do Windows."
+    m "The Windows entry in the menu is the original loader at EFI/Microsoft/bootmgfw.efi (untouched). To undo: ./uninstall.sh." \
+      "A entrada do Windows no menu é o carregador original em EFI/Microsoft/bootmgfw.efi (intocado). Para desfazer: ./uninstall.sh."
+}
+
 main_menu() {
     while true; do
         echo ""
@@ -271,6 +381,8 @@ if [ "${1:-}" = "--background" ]; then   # troca só imagem/resolução do tema 
 fi
 
 if [ "${1:-}" = "--status" ]; then show_status; exit $?; fi
+if [ "${1:-}" = "--clean-screenshots" ]; then clean_screenshots; exit $?; fi
+if [ "${1:-}" = "--windows-loader" ]; then windows_loader; exit $?; fi
 
 if [ "${1:-}" = "--update" ]; then   # atualiza uma instalação anterior sem passar pelo menu
     select_language
