@@ -8,13 +8,14 @@ Notas pessoais de máquinas/discos ficam em `CLAUDE.local.md` (não versionado).
 ## Arquivos
 - `lib.sh` — helpers compartilhados (`copy_theme`, idioma `m`, `has_nvram`, `find_esp`, `find_refind_dirs`, `is_refind_binary`, `pkg_install`, funções do menu de boot `menu_*`).
 - `install.sh` — menu: rEFInd / tema / ambos / assistente dual-boot / menu de boot. Flags: `--entries`, `--background`, `--status` (só leitura), `--update`,
-  `--clean-screenshots`, `--windows-loader`, `--boot-menu`, `--default last|linux|windows|none|<texto>`, `--timeout N`.
+  `--clean-screenshots`, `--windows-loader`, `--boot-menu`, `--custom-background [arquivo]`, `--icons white|black`, `--default last|linux|windows|none|<texto>`, `--timeout N`.
 - `uninstall.sh` — remove tema/rEFInd e restaura o carregador original do backup.
 - `dualboot.sh [/dev/disco]` — analisa o disco; cria partição NTFS em espaço livre; guia redução da raiz (só de sistema live). **Experimental.**
 - `portable.sh` — rEFInd portátil em pendrive/SSD USB (rede de segurança). Só lista discos USB; não usa `refind-install`.
 - `merge-linux.sh [-n]` — copia um Ubuntu (ext4) para o espaço livre de um SSD com Windows (GPT). Usar `--dry-run` primeiro. Só em Linux.
 - `tools/{mac,linux}-restore-windows.sh` — restauram imagem do Windows (`dd` + zstd) num SSD de destino. **Não executados em testes** (só `bash -n`/shellcheck).
-- `tools/make_fonts.py`, `tools/make_icons.py` — geram fontes/ícones (dev, requer Pillow). Saída versionada em `fonts/` e `icons/`.
+- `tools/make_fonts.py`, `tools/make_icons.py` — geram fontes/ícones (dev, requer Pillow). Saída versionada em `fonts/`, `icons/` e `icons-black/` (ícones pretos + quadros de seleção).
+- `tools/make_background.py` — prepara a imagem do usuário (recorte 16:9, resolução, cinza opcional, canais [4,251], PNG) em `backgrounds/custom/` (fora do Git); `--brightness` mede o brilho atrás dos ícones. A cor dos ícones fica em `install.info` (`icons=`).
 - `theme.conf`, `icons/`, `selection_*.png`, `backgrounds/<LxA>/background.<nome>.png` — tema. Fundos 1280x720, 1920x1080 (fallback), 2560x1440, 3840x2160.
 - `VERSION` — versão do tema; gravada na ESP junto com `install.info` para detectar instalações antigas.
 
@@ -46,6 +47,7 @@ Notas pessoais de máquinas/discos ficam em `CLAUDE.local.md` (não versionado).
 - Entradas próprias: `menuentry` com `volume <PARTUUID>`, `loader`, `icon` (do tema ou PNG do usuário em `<dir>/icons-custom/`). O "Fallback" duplicado é escondido pelo rótulo.
 - **"Última seleção" (`default_selection "+,vmlinuz"`) NÃO funcionou de forma confiável** em firmware sem NVRAM: o `vars/PreviousBoot` só registrou o Linux, nunca
   Windows nem entradas manuais. Preferir padrão fixo (`--default linux|windows`). Sem a linha `default_selection`, o rEFInd escolhe a primeira entrada (Windows).
+  A política "Linux" usa `LINUX_MATCH` (lib.sh): `vmlinuz,Image,ubuntu,shim,grub`; só `vmlinuz` não casava no Desktop x86 (Ubuntu inicia pelo shim) e caía no Windows.
 
 ## Estado dos testes (diga isso no README)
 - Validado: instalação/desinstalação em arm64 sem NVRAM, tema e fundos em 1080p/1440p/4K, `--update`, `--status`, `--clean-screenshots`, `--windows-loader`,

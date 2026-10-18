@@ -95,7 +95,13 @@ You pick the resolution next and whether to keep the colors (default: grayscale,
 
 ### 🖼️ Icons
 
-`icons/` has the white icons the theme uses (including `os_gamepad.png` for retro consoles and `os_tails.png`, a generic privacy icon). `icons-black/` has the same icons in pure black, for light backgrounds; to use them, copy that folder over `themes/rEFInd-grayscale-minimal/icons/` on your EFI partition. Regenerate them with `python3 tools/make_icons.py` (needs Pillow).
+`icons/` has the white icons the theme uses (including `os_gamepad.png` for retro consoles and `os_tails.png`, a generic privacy icon). `icons-black/` has the same icons, plus the selection frames, in pure black, for light backgrounds.
+
+After you pick a background, the installer asks for the icon color. With your own image it measures the brightness behind the icons and suggests white (dark image) or black (light image); ENTER accepts the suggestion. The choice is remembered for `--update`. To change only the icon color later, keeping the background:
+```bash
+./install.sh --icons black     # or: white
+```
+Regenerate the black set with `python3 tools/make_icons.py` (needs Pillow).
 
 ### 🗑️ Uninstallation (via Script)
 
@@ -213,7 +219,13 @@ Depois você escolhe a resolução e se quer manter as cores (padrão: cinza, pa
 
 ### 🖼️ Ícones
 
-`icons/` tem os ícones brancos usados pelo tema (incluindo `os_gamepad.png` para consoles retrô e `os_tails.png`, um ícone genérico de privacidade). `icons-black/` tem os mesmos ícones em preto puro, para fundos claros; para usá-los, copie essa pasta sobre `themes/rEFInd-grayscale-minimal/icons/` na sua partição EFI. Gere-os de novo com `python3 tools/make_icons.py` (precisa do Pillow).
+`icons/` tem os ícones brancos usados pelo tema (incluindo `os_gamepad.png` para consoles retrô e `os_tails.png`, um ícone genérico de privacidade). `icons-black/` tem os mesmos ícones, mais os quadros de seleção, em preto puro, para fundos claros.
+
+Depois de escolher o fundo, o instalador pergunta a cor dos ícones. Com a sua própria imagem ele mede o brilho atrás dos ícones e sugere branco (imagem escura) ou preto (imagem clara); ENTER aceita a sugestão. A escolha fica gravada para o `--update`. Para trocar só a cor dos ícones, mantendo o fundo:
+```bash
+./install.sh --icons black     # ou: white
+```
+Gere o conjunto preto de novo com `python3 tools/make_icons.py` (precisa do Pillow).
 
 ### 🗑️ Desinstalação (via Script)
 

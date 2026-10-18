@@ -4,6 +4,7 @@ escolhida, tira o canal alpha, opcionalmente converte para cinza e limita os can
 (O limite evita pixels coloridos: o rEFInd estoura valores quase pretos/brancos ao reescalar.)
 
 Uso: python3 tools/make_background.py ENTRADA SAÍDA.png LARGURAxALTURA [--color]
+     python3 tools/make_background.py --brightness IMAGEM.png   (brilho médio 0-255 onde ficam os ícones)
 Saída sempre em PNG (JPEG como fundo já causou tela preta no boot). Requer Pillow.
 """
 import sys
@@ -12,7 +13,19 @@ from PIL import Image, ImageOps
 LO, HI = 4, 251
 
 
+def brightness(path):
+    """Brilho médio (0-255) da faixa central, onde o rEFInd desenha os ícones."""
+    im = ImageOps.grayscale(Image.open(path).convert("RGB"))
+    w, h = im.size
+    box = im.crop((int(w * 0.2), int(h * 0.3), int(w * 0.8), int(h * 0.75)))
+    hist = box.histogram()
+    return round(sum(i * c for i, c in enumerate(hist)) / max(sum(hist), 1))
+
+
 def main(argv):
+    if len(argv) == 2 and argv[0] == "--brightness":
+        print(brightness(argv[1]))
+        return 0
     args = [a for a in argv if not a.startswith("--")]
     color = "--color" in argv
     if len(args) != 3:

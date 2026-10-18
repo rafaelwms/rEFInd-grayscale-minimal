@@ -69,7 +69,7 @@ def tails():
 
 def make_black(icons_dir, out_dir):
     """Cópia de cada ícone em preto puro, preservando o alfa (para fundos claros).
-    Os quadros de seleção (selection_*.png) ficam de fora: são translúcidos e não são ícones."""
+    Os selection_*.png de icons/ ficam de fora (não são usados); os do tema, da raiz, entram em preto."""
     os.makedirs(out_dir, exist_ok=True)
     count = 0
     for name in sorted(os.listdir(icons_dir)):
@@ -80,6 +80,16 @@ def make_black(icons_dir, out_dir):
         black.putalpha(src.getchannel("A"))
         black.save(os.path.join(out_dir, name), optimize=True)
         count += 1
+    # quadros de seleção usados pelo tema (ficam na raiz do repositório): preto translúcido, mesmo alfa
+    root = os.path.dirname(os.path.normpath(icons_dir))
+    for name in ("selection_big.png", "selection_small.png"):
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            src = Image.open(path).convert("RGBA")
+            black = Image.new("RGBA", src.size, (0, 0, 0, 0))
+            black.putalpha(src.getchannel("A"))
+            black.save(os.path.join(out_dir, name), optimize=True)
+            count += 1
     return count
 
 

@@ -128,12 +128,19 @@ copy_theme() {
     $SUDO mkdir -p "$dest"
     $SUDO cp -r icons selection_big.png selection_small.png theme.conf "$dest/"
     $SUDO cp "$bg" "$dest/background.png"
+    # Ícones pretos (para fundos claros): sobrepõe os brancos e os quadros de seleção do tema
+    if [ "${ICON_STYLE:-white}" = black ] && [ -d icons-black ]; then
+        $SUDO cp icons-black/*.png "$dest/icons/"
+        local sf; for sf in selection_big.png selection_small.png; do
+            [ -f "icons-black/$sf" ] && $SUDO cp "icons-black/$sf" "$dest/$sf"
+        done
+    fi
     # Fonte com contorno: o tamanho é em pixels da TELA, então segue o monitor (não o fundo escolhido).
     local sres; sres=$(nearest_resolution "$(detect_resolution)")
     [ -f "fonts/$sres/font.png" ] && $SUDO cp "fonts/$sres/font.png" "$dest/font.png"
     # Marca a versão e a escolha feita, para o instalador detectar e atualizar depois
     echo "$THEME_VERSION" | $SUDO tee "$dest/VERSION" >/dev/null
-    printf 'background=%s\nscreen=%s\n' "$bg" "$(detect_resolution)" | $SUDO tee "$dest/install.info" >/dev/null
+    printf 'background=%s\nscreen=%s\nicons=%s\n' "$bg" "$(detect_resolution)" "${ICON_STYLE:-white}" | $SUDO tee "$dest/install.info" >/dev/null
     $SUDO grep -qxF "$include" "$dir/refind.conf" \
         || echo "$include" | $SUDO tee -a "$dir/refind.conf" >/dev/null
 }
@@ -171,6 +178,22 @@ nearest_resolution() {
         [ "$d" -lt "$bd" ] && { bd=$d; best=$r; }
     done
     echo "$best"
+}
+
+# choose_icon_style [sugestão white|black]: define ICON_STYLE. Pulado se --icons já fixou o valor.
+choose_icon_style() {
+    local sugg="${1:-white}" opt def=1
+    [ -n "${ICON_FORCED:-}" ] && return 0
+    [ -d icons-black ] || { ICON_STYLE=white; return 0; }
+    [ "$sugg" = black ] && def=2
+    echo ""
+    m "Icon color (white suits dark backgrounds, black suits light ones):" \
+      "Cor dos ícones (branco combina com fundos escuros, preto com fundos claros):"
+    echo "1) $(m 'White' 'Brancos')  2) $(m 'Black' 'Pretos')"
+    read -r -p "$(m "Option (1-2, ENTER = $def, suggested): " "Opção (1-2, ENTER = $def, sugerida): ")" opt
+    case ${opt:-$def} in 2) ICON_STYLE=black ;; *) ICON_STYLE=white ;; esac
+    m "Icons: $ICON_STYLE" "Ícones: $([ "$ICON_STYLE" = black ] && echo pretos || echo brancos)"
+    return 0
 }
 
 # ask_resolution AUTO: lista as resoluções e imprime a escolhida (ENTER = AUTO). Menu vai para o stderr.
@@ -220,6 +243,14 @@ custom_background() {
     echo "$src" > backgrounds/custom/source.txt
     BG_CHOICE="backgrounds/custom/background.png"
     m "Using: $BG_CHOICE" "Usando: $BG_CHOICE"
+    local lum sugg=white
+    lum=$(python3 -I tools/make_background.py --brightness "$BG_CHOICE" 2>/dev/null) || lum=""
+    if [[ "$lum" =~ ^[0-9]+$ ]]; then
+        [ "$lum" -gt 150 ] && sugg=black
+        m "Average brightness behind the icons: $lum/255 (suggested icons: $([ "$sugg" = black ] && echo black || echo white))." \
+          "Brilho médio atrás dos ícones: $lum/255 (ícones sugeridos: $([ "$sugg" = black ] && echo pretos || echo brancos))."
+    fi
+    choose_icon_style "$sugg"
 }
 
 # Pergunta imagem e resolução; ENTER = automático. Define BG_CHOICE (caminho do PNG).
@@ -248,6 +279,7 @@ choose_background() {
     BG_CHOICE="backgrounds/$res/background.$name.png"
     [ -f "$BG_CHOICE" ] || { m "Image not found: $BG_CHOICE" "Imagem não encontrada: $BG_CHOICE"; return 1; }
     m "Using: $BG_CHOICE" "Usando: $BG_CHOICE"
+    choose_icon_style white
 }
 
 # --- Menu de boot: sistema padrão, tempo de espera, entradas personalizadas ----------------------
@@ -255,12 +287,15 @@ choose_background() {
 # metadados lidos de volta (para o assistente lembrar o que já foi escolhido); o resto do bloco são
 # as diretivas do rEFInd. Várias linhas "dont_scan_dirs" SUBSTITUEM a lista anterior, por isso o bloco
 # usa "dont_scan_dirs + ..." (acrescenta à lista que o bloco do modo Windows já definiu).
+# Termos tentados em ordem para achar a entrada Linux: kernel em /boot (vmlinuz/Image, ex.: Radxa) e,
+# quando o Linux inicia por shim/GRUB (ex.: Ubuntu em desktops), o caminho do carregador.
+LINUX_MATCH="vmlinuz,Image,ubuntu,shim,grub"
 MARK_MENU_BEGIN="# BEGIN rEFInd-installer-menu (auto-generated, do not edit)"
 MARK_MENU_END="# END rEFInd-installer-menu"
 
 menu_reset() {
     MENU_POLICY=last        # last | linux | windows | none | custom:<texto>
-    MENU_FALLBACK=vmlinuz   # usado por "last" quando ainda não há última seleção
+    MENU_FALLBACK=$LINUX_MATCH   # usado por "last" quando ainda não há última seleção
     MENU_TIMEOUT=20         # segundos; -1 = esperar a escolha
     MENU_MOUSE=off          # on|off (enable_mouse: mouse e dispositivos apontadores)
     MENU_ENTRIES=()         # "Nome|ícone|PARTUUID|/caminho/loader.efi|RÓTULO-DO-VOLUME"
@@ -290,7 +325,7 @@ menu_read() {
 menu_policy_text() {
     case $MENU_POLICY in
         last)     m "last selection (fallback: $MENU_FALLBACK)" "última seleção (reserva: $MENU_FALLBACK)" ;;
-        linux)    m "Linux (vmlinuz)" "Linux (vmlinuz)" ;;
+        linux)    m "Linux ($LINUX_MATCH)" "Linux ($LINUX_MATCH)" ;;
         windows)  m "Windows" "Windows" ;;
         none)     m "none: wait for my choice" "nenhum: esperar a minha escolha" ;;
         custom:*) m "entry containing \"${MENU_POLICY#custom:}\"" "entrada que contém \"${MENU_POLICY#custom:}\"" ;;
@@ -312,7 +347,7 @@ menu_write() {
         case $MENU_POLICY in
             none)     echo "timeout -1" ;;
             last)     echo "timeout $MENU_TIMEOUT"; echo "default_selection \"+,$MENU_FALLBACK\"" ;;
-            linux)    echo "timeout $MENU_TIMEOUT"; echo "default_selection vmlinuz" ;;
+            linux)    echo "timeout $MENU_TIMEOUT"; echo "default_selection \"$LINUX_MATCH\"" ;;
             windows)  echo "timeout $MENU_TIMEOUT"; echo "default_selection bootmgfw" ;;
             custom:*) echo "timeout $MENU_TIMEOUT"; echo "default_selection \"${MENU_POLICY#custom:}\"" ;;
         esac

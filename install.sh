@@ -191,21 +191,35 @@ check_existing() {
         return 1
     fi
     m "A newer version is available: $THEME_VERSION." "Há uma versão mais nova: $THEME_VERSION."
-    confirm "Update now (your background choice is kept)?" "Atualizar agora (a escolha de fundo é mantida)?" || return 1
-    update_existing
+    confirm "Update now?" "Atualizar agora?" || return 1
+    update_existing ask
 }
 
 # Reaplica o tema reaproveitando a imagem escolhida antes (install.info); se não houver, pergunta.
-update_existing() {
-    local dir info prev="" d
+update_existing() {   # update_existing [ask]: com "ask", oferece trocar fundo/ícones em vez de mantê-los
+    local dir info prev="" d ic
     for dir in $(find_refind_dirs "$ESP"); do
         info="$dir/themes/$THEME_NAME/install.info"
         d=$($SUDO sed -n 's/^background=//p' "$info" 2>/dev/null | head -n1)
+        ic=$($SUDO sed -n 's/^icons=//p' "$info" 2>/dev/null | head -n1)
         [ -n "$d" ] && [ -f "$d" ] && { prev="$d"; break; }
+        # a origem sumiu (ex.: pasta do repositório recriada): recupera a cópia que já está na ESP
+        if [ -n "$d" ] && [ ! -f "$d" ] && $SUDO test -f "$dir/themes/$THEME_NAME/background.png"; then
+            mkdir -p "$(dirname "$d")" && $SUDO cp "$dir/themes/$THEME_NAME/background.png" "$d" \
+                && $SUDO chown "$(id -u):$(id -g)" "$d" && prev="$d" \
+                && { m "Recovered the background from the installed theme." "Fundo recuperado do tema instalado."; break; }
+        fi
     done
+    [ -n "${ICON_STYLE:-}" ] || ICON_STYLE=${ic:-white}
+    if [ -n "$prev" ] && [ "${1:-}" = ask ]; then
+        confirm "Pick a different background/icon color now? (N = keep the current ones)" \
+                "Escolher outro fundo/cor de ícones agora? (N = manter os atuais)" && prev=""
+    fi
     if [ -n "$prev" ]; then
         BG_CHOICE="$prev"; m "Keeping previous background: $BG_CHOICE" "Mantendo o fundo anterior: $BG_CHOICE"
+        m "Icons: $ICON_STYLE" "Ícones: $([ "$ICON_STYLE" = black ] && echo pretos || echo brancos)"
     else
+        unset ICON_STYLE
         choose_background || return 1
     fi
     install_theme
@@ -349,11 +363,13 @@ apply_menu() {
         $SUDO test -e "$d/refind.conf.bak-menu" || $SUDO cp "$d/refind.conf" "$d/refind.conf.bak-menu"
         menu_write "$d"
         # garante que os ícones do tema usados pelas entradas já estejam na ESP (o tema pode estar desatualizado)
+        local isrc=icons
+        $SUDO grep -qx 'icons=black' "$d/themes/$THEME_NAME/install.info" 2>/dev/null && [ -d icons-black ] && isrc=icons-black
         for e in "${MENU_ENTRIES[@]}"; do
             IFS='|' read -r name icon _ <<<"$e"
             case $icon in custom/*) ;; *)
-                if [ -f "icons/$icon" ] && ! $SUDO test -f "$d/themes/$THEME_NAME/icons/$icon"; then
-                    $SUDO mkdir -p "$d/themes/$THEME_NAME/icons" && $SUDO cp "icons/$icon" "$d/themes/$THEME_NAME/icons/$icon"
+                if [ -f "$isrc/$icon" ] && ! $SUDO test -f "$d/themes/$THEME_NAME/icons/$icon"; then
+                    $SUDO mkdir -p "$d/themes/$THEME_NAME/icons" && $SUDO cp "$isrc/$icon" "$d/themes/$THEME_NAME/icons/$icon"
                 fi ;;
             esac
         done
@@ -528,6 +544,15 @@ if [ "${1:-}" = "--background" ]; then   # troca só imagem/resolução do tema 
     exit $?
 fi
 
+if [ "${1:-}" = "--icons" ]; then   # troca só a cor dos ícones (white|black), mantendo o fundo atual
+    case "${2:-}" in white|black) ;; *) echo "uso: ./install.sh --icons white|black"; exit 2 ;; esac
+    select_language
+    # shellcheck disable=SC2034  # ICON_FORCED é lido em lib.sh (choose_icon_style)
+    ICON_STYLE=$2; ICON_FORCED=1
+    ESP=$(find_esp) || { m "ESP not found." "ESP não encontrada."; exit 1; }
+    update_existing
+    exit $?
+fi
 if [ "${1:-}" = "--status" ]; then show_status; exit $?; fi
 if [ "${1:-}" = "--clean-screenshots" ]; then clean_screenshots; exit $?; fi
 if [ "${1:-}" = "--windows-loader" ]; then windows_loader; exit $?; fi
