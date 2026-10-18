@@ -37,7 +37,8 @@ command -v mkfs.ext4 >/dev/null || need="$need e2fsprogs"
 if [ -n "$need" ]; then
     m "Missing tools:$need" "Faltam ferramentas:$need"
     confirm "Install them now?" "Instalar agora?" || exit 1
-    $SUDO apt-get update -qq && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y $need || die "install failed" "falha na instalação"
+    # shellcheck disable=SC2086  # $need é uma lista de pacotes separada por espaços
+    { $SUDO apt-get update -qq && $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y $need; } || die "install failed" "falha na instalação"
 fi
 
 ROOT_SRC=$(findmnt -no SOURCE /)
@@ -57,7 +58,7 @@ detect_disk() {
     after=$(list_disks)
     new=$(comm -13 <(echo "$before") <(echo "$after") | grep .)
     if [ -n "$new" ] && [ "$(echo "$new" | wc -l)" -eq 1 ]; then PICKED=$new; return 0; fi
-    [ -z "$new" ] && m "No new disk detected." "Nenhum disco novo detectado." || m "More than one new disk." "Mais de um disco novo."
+    if [ -z "$new" ]; then m "No new disk detected." "Nenhum disco novo detectado."; else m "More than one new disk." "Mais de um disco novo."; fi
     mapfile -t L < <(echo "$after")
     for i in "${!L[@]}"; do echo "$((i+1))) $(describe "${L[$i]}")"; done
     read -r -p "$(m 'Choose a number (0 = cancel): ' 'Escolha o número (0 = cancelar): ')" n

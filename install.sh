@@ -403,11 +403,11 @@ add_menu_entry() {
     [[ "$opt" =~ ^[0-9]+$ ]] && [ "$opt" -ge 1 ] && [ "$opt" -le "${#found[@]}" ] || return 0
     IFS='|' read -r dev label puuid loader <<<"${found[$((opt-1))]}"
     label=$(printf '%b' "$label")
-    name=$(echo "$label" | sed 's/^./\U&/; s/\(.*\)/\1/' | tr 'A-Z' 'a-z' | sed 's/^./\U&/')
+    name=$(echo "$label" | sed 's/^./\U&/; s/\(.*\)/\1/' | tr '[:upper:]' '[:lower:]' | sed 's/^./\U&/')
     [ "$label" = "-" ] && name="Sistema"
     read -r -p "$(m "Name in the menu (ENTER = $name): " "Nome no menu (ENTER = $name): ")" opt
     opt=${opt//|/ }; opt=${opt//\"/}; [ -n "$opt" ] && name=$opt
-    sugg=os_unknown; case "${label,,}${name,,}" in *recal*|*batocera*|*retro*|*game*|*lakka*|*emul*) sugg=os_gamepad ;; esac
+    sugg=os_unknown; case "${label,,}${name,,}" in *recal*|*batocera*|*retro*|*game*|*lakka*|*emul*) sugg=os_gamepad ;; *tails*|*whonix*|*privacy*) sugg=os_tails ;; esac
     choose_icon "$sugg"
     # substitui uma entrada de mesmo nome
     local keep=() e
@@ -454,7 +454,7 @@ boot_menu() {
                    5) MENU_POLICY=none ;;
                esac ;;
             2) read -r -p "$(m 'Seconds (0 = boot at once, -1 = wait): ' 'Segundos (0 = iniciar já, -1 = esperar): ')" n
-               [[ "$n" =~ ^-?[0-9]+$ ]] && MENU_TIMEOUT=$n || m "Invalid number." "Número inválido." ;;
+               if [[ "$n" =~ ^-?[0-9]+$ ]]; then MENU_TIMEOUT=$n; else m "Invalid number." "Número inválido."; fi ;;
             3) add_menu_entry ;;
             4) read -r -p "$(m 'Number of the entry to remove: ' 'Número da entrada a remover: ')" n
                if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le "${#MENU_ENTRIES[@]}" ]; then
@@ -517,6 +517,11 @@ if [ "${1:-}" = "--entries" ]; then   # regenera só as entradas de boot geradas
     exit 0
 fi
 
+if [ "${1:-}" = "--custom-background" ]; then   # prepara uma imagem sua e instala como fundo: --custom-background [arquivo]
+    select_language
+    custom_background "${2:-}" && install_theme
+    exit $?
+fi
 if [ "${1:-}" = "--background" ]; then   # troca só imagem/resolução do tema já instalado
     select_language
     choose_background && install_theme

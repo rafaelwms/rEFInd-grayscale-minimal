@@ -4,7 +4,9 @@
 
 THEME_NAME="rEFInd-grayscale-minimal"
 THEME_VERSION=$(cat "$(dirname "${BASH_SOURCE[0]}")/VERSION" 2>/dev/null || echo 0)
+# shellcheck disable=SC2034  # usadas pelos scripts que fazem source deste arquivo
 MARK_BEGIN="# BEGIN rEFInd-installer (auto-generated, do not edit)"
+# shellcheck disable=SC2034
 MARK_END="# END rEFInd-installer"
 MARK_WIN_BEGIN="# BEGIN rEFInd-installer-windows (auto-generated, do not edit)"
 MARK_WIN_END="# END rEFInd-installer-windows"
@@ -171,9 +173,58 @@ nearest_resolution() {
     echo "$best"
 }
 
+# ask_resolution AUTO: lista as resoluções e imprime a escolhida (ENTER = AUTO). Menu vai para o stderr.
+ask_resolution() {
+    local auto="$1" i=1 res opt rs
+    read -ra rs <<<"$BG_RESOLUTIONS"
+    m "Select the resolution:" "Selecione a resolução:" >&2
+    for res in "${rs[@]}"; do
+        echo "$i) $res$([ "$res" = "$auto" ] && m '  <- automatic' '  <- automático')" >&2; i=$((i+1))
+    done
+    read -r -p "$(m "Option (1-${#rs[@]}, ENTER = automatic): " "Opção (1-${#rs[@]}, ENTER = automático): ")" opt
+    if [[ "$opt" =~ ^[0-9]+$ ]] && [ "$opt" -ge 1 ] && [ "$opt" -le "${#rs[@]}" ]; then echo "${rs[$((opt-1))]}"; else echo "$auto"; fi
+}
+
+# ensure_pillow: garante o módulo PIL do Python (usado só para preparar o fundo do usuário)
+ensure_pillow() {
+    python3 -c 'import PIL' 2>/dev/null && return 0
+    m "Preparing your image needs Python's Pillow library." "Preparar a sua imagem exige a biblioteca Pillow do Python."
+    confirm "Install it now?" "Instalar agora?" || return 1
+    if   command -v apt    >/dev/null 2>&1; then $SUDO apt-get install -y python3-pil
+    elif command -v pacman >/dev/null 2>&1; then $SUDO pacman -S --noconfirm python-pillow
+    elif command -v dnf    >/dev/null 2>&1; then $SUDO dnf install -y python3-pillow
+    elif command -v zypper >/dev/null 2>&1; then $SUDO zypper install -y python3-Pillow
+    else m "Install Pillow with your package manager and try again." "Instale o Pillow pelo seu gerenciador de pacotes e tente de novo."; return 1
+    fi
+    python3 -c 'import PIL' 2>/dev/null
+}
+
+# custom_background [ARQUIVO] [RES_AUTOMÁTICA]: prepara uma imagem do usuário como fundo e define BG_CHOICE.
+# Recorta para 16:9, ajusta à resolução, tira o alfa, cinza opcional, canais em [4,251]; saída em backgrounds/custom/.
+custom_background() {
+    local src="${1:-}" auto="${2:-}" res color=""
+    if [ -z "$src" ]; then
+        read -r -e -p "$(m 'Path of your image (PNG/JPEG/WebP...): ' 'Caminho da sua imagem (PNG/JPEG/WebP...): ')" src
+    fi
+    src=${src%\"}; src=${src#\"}; src=${src%\'}; src=${src#\'}   # tira aspas coladas do gerenciador de arquivos
+    src=${src/#\~/$HOME}
+    [ -f "$src" ] || { m "File not found: $src" "Arquivo não encontrado: $src"; return 1; }
+    ensure_pillow || return 1
+    [ -n "$auto" ] || auto=$(nearest_resolution "$(detect_resolution)")
+    res=$(ask_resolution "$auto")
+    # padrão = cinza (combina com o tema); só mantém as cores se o usuário pedir
+    if confirm "Keep the image colors? (default: convert to grayscale)" "Manter as cores da imagem? (padrão: converter para cinza)"; then color="--color"; fi
+    mkdir -p backgrounds/custom
+    # shellcheck disable=SC2086  # $color é vazio ou uma única flag
+    python3 -I tools/make_background.py "$src" "backgrounds/custom/background.png" "$res" $color || return 1
+    echo "$src" > backgrounds/custom/source.txt
+    BG_CHOICE="backgrounds/custom/background.png"
+    m "Using: $BG_CHOICE" "Usando: $BG_CHOICE"
+}
+
 # Pergunta imagem e resolução; ENTER = automático. Define BG_CHOICE (caminho do PNG).
 choose_background() {
-    local det auto name res i=1 opt rs=($BG_RESOLUTIONS)
+    local det auto name res opt
     det=$(detect_resolution) || det=""
     auto=$(nearest_resolution "$det")
     echo ""
@@ -188,17 +239,12 @@ choose_background() {
     fi
 
     m "Select the background image:" "Selecione a imagem de fundo:"
-    echo "1) Skulls  2) Fender  3) Gibson"
-    read -r -p "$(m 'Option (1-3, ENTER = Skulls): ' 'Opção (1-3, ENTER = Skulls): ')" opt
-    case $opt in 2) name=fender ;; 3) name=gibson ;; *) name=skulls ;; esac
+    echo "1) Skulls  2) Fender  3) Gibson  4) $(m 'My own image' 'Minha própria imagem')"
+    read -r -p "$(m 'Option (1-4, ENTER = Skulls): ' 'Opção (1-4, ENTER = Skulls): ')" opt
+    case $opt in 2) name=fender ;; 3) name=gibson ;; 4) name=custom ;; *) name=skulls ;; esac
+    if [ "$name" = custom ]; then custom_background "" "$auto"; return; fi
 
-    m "Select the resolution:" "Selecione a resolução:"
-    for res in "${rs[@]}"; do
-        echo "$i) $res$([ "$res" = "$auto" ] && m '  <- automatic' '  <- automático')"; i=$((i+1))
-    done
-    read -r -p "$(m "Option (1-${#rs[@]}, ENTER = automatic): " "Opção (1-${#rs[@]}, ENTER = automático): ")" opt
-    if [[ "$opt" =~ ^[0-9]+$ ]] && [ "$opt" -ge 1 ] && [ "$opt" -le "${#rs[@]}" ]; then res=${rs[$((opt-1))]}; else res=$auto; fi
-
+    res=$(ask_resolution "$auto")
     BG_CHOICE="backgrounds/$res/background.$name.png"
     [ -f "$BG_CHOICE" ] || { m "Image not found: $BG_CHOICE" "Imagem não encontrada: $BG_CHOICE"; return 1; }
     m "Using: $BG_CHOICE" "Usando: $BG_CHOICE"
@@ -289,7 +335,7 @@ menu_write() {
 # (EFI/BOOT/boot<arq>.efi) de OUTRAS partições FAT, ou seja, o que o rEFInd mostra como "Fallback boot loader".
 # Ignora a ESP em uso e qualquer carregador que seja o próprio rEFInd.
 scan_other_loaders() {
-    local plat dev fs label puuid mp own tmp f rel
+    local plat dev fs label puuid own tmp f rel
     plat=$(refind_platform); own=$(esp_device "$ESP" 2>/dev/null)
     while read -r dev fs label puuid; do
         [ "$fs" = vfat ] || continue

@@ -42,7 +42,7 @@ analyze() {
 
 # Cria partição NTFS no maior espaço livre
 create_windows_partition() {
-    local size_gib="$1" start
+    local size_gib="$1"
     command -v sgdisk >/dev/null 2>&1 || $SUDO apt-get install -y gdisk
     command -v mkfs.ntfs >/dev/null 2>&1 || $SUDO apt-get install -y ntfs-3g
     $SUDO sgdisk -n "0:0:+${size_gib}G" -t 0:0700 -c 0:"Windows" "$DISK" || return 1
@@ -93,7 +93,7 @@ if [ "$GIB_FREE" -ge 64 ]; then
     read -r -p "$(m 'Size for the Windows partition in GiB (0 = skip): ' 'Tamanho da partição do Windows em GiB (0 = pular): ')" size
     if [ "${size:-0}" -ge 64 ] 2>/dev/null && [ "$size" -le "$GIB_FREE" ]; then
         read -r -p "$(m "Type the disk name ($DISK) to confirm partitioning: " "Digite o nome do disco ($DISK) para confirmar o particionamento: ")" typed
-        [ "$typed" = "$DISK" ] && create_windows_partition "$size" || m "Cancelled." "Cancelado."
+        if [ "$typed" = "$DISK" ]; then create_windows_partition "$size"; else m "Cancelled." "Cancelado."; fi
     fi
 else
     m "Not enough unallocated space. You need to shrink the Ubuntu root partition first." \
@@ -105,7 +105,7 @@ else
     if [ -n "$rp" ]; then
         read -r -p "$(m 'New root size in GiB: ' 'Novo tamanho da raiz em GiB: ')" ns
         read -r -p "$(m "Type the disk name ($DISK) to confirm: " "Digite o nome do disco ($DISK) para confirmar: ")" typed
-        [ "$typed" = "$DISK" ] && shrink_root "$rp" "$ns" || m "Cancelled." "Cancelado."
+        if [ "$typed" = "$DISK" ]; then shrink_root "$rp" "$ns"; else m "Cancelled." "Cancelado."; fi
     fi
 fi
 windows_instructions

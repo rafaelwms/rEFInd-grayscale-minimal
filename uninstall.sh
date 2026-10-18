@@ -30,6 +30,8 @@ uninstall_refind() {
     local platform; platform=$(refind_platform)
     local fallback="$ESP/EFI/BOOT/boot$platform.efi"
     local backup="$ESP/EFI/refind-backup/boot$platform.efi.orig"
+    # portable.sh guarda o original ao lado do rEFInd, em EFI/Boot/boot<plat>.efi.orig
+    local backup_portable="$ESP/EFI/BOOT/boot$platform.efi.orig"
 
     # Modo install.sh --windows-loader: devolve o bootmgfw.efi original do Windows ao lugar
     local ms="$ESP/EFI/Microsoft" msboot="$ESP/EFI/Microsoft/Boot"
@@ -58,9 +60,21 @@ uninstall_refind() {
 
     # Restaura o carregador original se o rEFInd estiver ocupando o caminho padrão
     if is_refind_binary "$fallback"; then
-        if $SUDO test -f "$backup"; then
-            $SUDO cp "$backup" "$fallback" && m "Original fallback loader restored." "Carregador padrão original restaurado."
-            $SUDO rm -rf "$ESP/EFI/refind-backup"
+        local orig=""
+        if   $SUDO test -f "$backup";          then orig=$backup
+        elif $SUDO test -f "$backup_portable"; then orig=$backup_portable
+        fi
+        if [ -n "$orig" ]; then
+            $SUDO cp "$orig" "$fallback" && $SUDO sync
+            if $SUDO cmp -s "$orig" "$fallback"; then
+                m "Original fallback loader restored." "Carregador padrão original restaurado."
+                $SUDO rm -rf "$ESP/EFI/refind-backup"
+                $SUDO rm -f "$backup_portable"
+            else
+                m "ERROR: could not restore the original loader; leaving everything as is." \
+                  "ERRO: não foi possível restaurar o carregador original; deixando tudo como está."
+                return 1
+            fi
         else
             m "WARNING: rEFInd is the fallback loader and no backup exists." \
               "AVISO: o rEFInd é o carregador padrão e não há backup."
@@ -72,7 +86,7 @@ uninstall_refind() {
         # Arquivos do rEFInd soltos em EFI/BOOT
         $SUDO rm -rf "$ESP/EFI/BOOT/refind.conf" "$ESP/EFI/BOOT/refind.conf.bak-menu" "$ESP/EFI/BOOT/refind.conf-sample" \
                      "$ESP/EFI/BOOT/refind_$platform.efi" "$ESP/EFI/BOOT/icons" "$ESP/EFI/BOOT/icons-custom" \
-                     "$ESP/EFI/BOOT/drivers_$platform" "$ESP/EFI/BOOT/themes" "$ESP/EFI/BOOT/keys"
+                     "$ESP/EFI/BOOT/drivers_$platform" "$ESP/EFI/BOOT/themes" "$ESP/EFI/BOOT/keys" "$ESP/EFI/BOOT/vars"
     fi
     $SUDO rm -rf "$ESP/EFI/refind"
 
@@ -104,13 +118,17 @@ main_menu() {
         echo "------------------------------------------------"
         read -r -p "$(m 'Select an option (1-4): ' 'Selecione uma opção (1-4): ')" option
         case $option in
-            1) uninstall_refind; break ;;
-            2) uninstall_theme; break ;;
-            3) uninstall_theme; uninstall_refind; break ;;
+            1) uninstall_refind || FAILED=1; break ;;
+            2) uninstall_theme || FAILED=1; break ;;
+            3) uninstall_theme || FAILED=1; uninstall_refind || FAILED=1; break ;;
             4) m "Uninstallation aborted." "Desinstalação cancelada."; exit 0 ;;
             *) m "Invalid option. Please try again." "Opção inválida. Tente novamente." ;;
         esac
     done
+    if [ "${FAILED:-0}" = 1 ]; then
+        m "Uninstallation was not completed (see messages above)." "Desinstalação não concluída (veja as mensagens acima)."
+        return 1
+    fi
     m "Uninstallation completed successfully!" "Desinstalação concluída com sucesso!"
 }
 

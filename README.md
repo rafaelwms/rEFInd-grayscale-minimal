@@ -7,7 +7,9 @@
 
 ## English
 
-> **Tested on:** Radxa Dragon Q6A (arm64, firmware without EFI variables) with Ubuntu 26.04. The standard x86/NVRAM path calls the stock `refind-install` and has not been exercised by the author yet. Run `./install.sh --status` first for a read-only report of what the installer sees.
+> **Tested on:** Radxa Dragon Q6A (arm64, firmware without EFI variables) with Ubuntu 26.04, Windows 11 ARM and Recalbox on one NVMe; also an x86_64 UEFI desktop (NVRAM) for `--update` and `merge-linux.sh`. Run `./install.sh --status` first for a read-only report of what the installer sees.
+>
+> **Not tested:** a clean install through the stock `refind-install` (x86/NVRAM path), Secure Boot, `dualboot.sh` (experimental), the Windows restore scripts in `tools/`, ultrawide/16:10 screens and the 1280x720 background. `--update` refreshes the theme, not the rEFInd binary.
 
 > **Tip:** pressing F10 in rEFInd saves a screenshot (`screenshot_NNN.bmp`) on the EFI partition, about 25 MB each at 4K, and rEFInd never deletes them. Clean up with `./install.sh --clean-screenshots`, especially on small EFI partitions.
 
@@ -36,6 +38,8 @@ Some ARM firmwares expose no EFI variables, so `refind-install` copies files but
 
 ### 🪟 Dual boot with Windows 11
 
+> **Experimental:** `dualboot.sh` has not been run end to end yet. Back up first.
+
 `./dualboot.sh [/dev/disk]` analyzes the disk (partition table, free space, ESP), can create an NTFS partition in unallocated space, and guides shrinking the root partition (must be done from a live system, since ext4 cannot shrink while mounted). The ESP is shared; rEFInd detects `EFI/Microsoft` automatically. Windows on the QCS6490 is unofficial: expect missing drivers.
 
 ### 💾 Portable rEFInd (USB stick)
@@ -49,7 +53,7 @@ Some ARM firmwares expose no EFI variables, so `refind-install` copies files but
 ./install.sh --default last     # last | linux | windows | none | any text from an entry name
 ./install.sh --timeout 10       # seconds (0 = boot at once, -1 = wait)
 ```
-- **Remember the last selection** (`last`): rEFInd boots whatever you picked last time (falling back to Linux the first time). It works without NVRAM: the choice is stored in the `vars` folder next to rEFInd.
+- **Remember the last selection** (`last`): rEFInd is asked to boot whatever you picked last time (falling back to Linux). **Unreliable on firmware without NVRAM**: in our tests it only remembered Linux, never Windows or custom entries. Prefer a fixed default (`--default linux` or `--default windows`).
 - **Custom entries with an icon**: the wizard finds other systems on FAT partitions (e.g. Recalbox, Batocera) that rEFInd would show as a generic "Fallback boot loader", lets you name them, pick an icon (or use your own PNG) and hides the duplicate.
 - **Mouse/touch** in the menu (`enable_mouse`). Gamepads are *not* seen by UEFI unless they present themselves as a boot keyboard/mouse; see the notes in the repository.
 
@@ -83,6 +87,16 @@ To change the image or resolution later:
 ```
 (or option 2 of the menu). Manually, copy `backgrounds/<resolution>/background.<name>.png` to `themes/rEFInd-grayscale-minimal/background.png` on your EFI partition.
 
+**Use your own image:** choose "4) My own image" in that menu, or run:
+```bash
+./install.sh --custom-background /path/to/photo.jpg
+```
+You pick the resolution next and whether to keep the colors (default: grayscale, to match the theme). The image is cropped to 16:9 from the center, scaled to the chosen resolution, stripped of transparency and its channels limited to 4-251, then saved as PNG in `backgrounds/custom/` (kept out of Git). It needs Python's Pillow, and the installer offers to install it. For the cleanest result use an image at least as large as your screen resolution; never use JPEG as the final file (the tool already outputs PNG).
+
+### 🖼️ Icons
+
+`icons/` has the white icons the theme uses (including `os_gamepad.png` for retro consoles and `os_tails.png`, a generic privacy icon). `icons-black/` has the same icons in pure black, for light backgrounds; to use them, copy that folder over `themes/rEFInd-grayscale-minimal/icons/` on your EFI partition. Regenerate them with `python3 tools/make_icons.py` (needs Pillow).
+
 ### 🗑️ Uninstallation (via Script)
 
 To remove the theme (and optionally rEFInd itself):
@@ -101,14 +115,19 @@ To remove the theme (and optionally rEFInd itself):
 ### 📜 Credits & License
 
 * **Backgrounds:** Generated on Gemini Nano Banana 2. More backgrounds are coming soon!
-* **Icons:** The base icons and selection frames are taken from the gorgeous [rEFInd-minimal-rog](https://github.com/Paradox-AT/rEFInd-minimal-rog) theme created by Paradox-AT.
-* **License:** This project is open-source and available under the MIT License. See the `LICENSE` file for details.
+* **Icons:** The base icons and selection frames are taken from the gorgeous [rEFInd-minimal-rog](https://github.com/Paradox-AT/rEFInd-minimal-rog) theme created by Paradox-AT, which is licensed under the MIT License (keep its copyright notice when redistributing).
+* **Font:** the files in `fonts/` are glyph images rendered from [Ubuntu Mono](https://design.ubuntu.com/font) (Canonical), which is distributed under the [Ubuntu Font Licence 1.0](https://ubuntu.com/legal/font-licence). They are derivative works; see that licence for the terms.
+* **rEFInd:** the boot manager itself is by Roderick W. Smith and is licensed under the GPL v3 and others. This project does not bundle it: it installs the package from your distribution.
+* **Heads-up on the images:** the AI-generated backgrounds may show a small generator watermark in a corner. Check the terms of the tool that generated them before redistributing.
+* **License:** the scripts and the project's own files are available under the MIT License. See the `LICENSE` file for details. Third-party material above keeps its own licences.
 
 ---
 
 ## Português (Brasil)
 
-> **Testado em:** Radxa Dragon Q6A (arm64, firmware sem variáveis EFI) com Ubuntu 26.04. O caminho padrão x86/NVRAM usa o `refind-install` oficial e ainda não foi exercitado pelo autor. Rode `./install.sh --status` antes: é um relatório somente leitura do que o instalador enxerga.
+> **Testado em:** Radxa Dragon Q6A (arm64, firmware sem variáveis EFI) com Ubuntu 26.04, Windows 11 ARM e Recalbox no mesmo NVMe; e um desktop x86_64 UEFI (com NVRAM) para o `--update` e o `merge-linux.sh`. Rode `./install.sh --status` antes: é um relatório somente leitura do que o instalador enxerga.
+>
+> **Não testado:** instalação limpa pelo `refind-install` oficial (caminho x86/NVRAM), Secure Boot, `dualboot.sh` (experimental), os scripts de restauração do Windows em `tools/`, telas ultrawide/16:10 e o fundo 1280x720. O `--update` atualiza o tema, não o binário do rEFInd.
 
 > **Dica:** apertar F10 no rEFInd salva um screenshot (`screenshot_NNN.bmp`) na partição EFI, uns 25 MB cada em 4K, e o rEFInd nunca os apaga. Limpe com `./install.sh --clean-screenshots`, principalmente em partições EFI pequenas.
 
@@ -137,6 +156,8 @@ Alguns firmwares ARM não expõem variáveis EFI: o `refind-install` copia os ar
 
 ### 🪟 Dual boot com Windows 11
 
+> **Experimental:** o `dualboot.sh` ainda não foi executado de ponta a ponta. Faça backup antes.
+
 `./dualboot.sh [/dev/disco]` analisa o disco (tabela de partições, espaço livre, ESP), cria uma partição NTFS no espaço não alocado e orienta a redução da partição raiz (só a partir de um sistema live, pois o ext4 não encolhe montado). A ESP é compartilhada; o rEFInd detecta `EFI/Microsoft` sozinho. Windows no QCS6490 não é oficial: esperem drivers faltando.
 
 ### 💾 rEFInd portátil (pendrive)
@@ -150,7 +171,7 @@ Alguns firmwares ARM não expõem variáveis EFI: o `refind-install` copia os ar
 ./install.sh --default last     # last | linux | windows | none | qualquer texto do nome de uma entrada
 ./install.sh --timeout 10       # segundos (0 = iniciar já, -1 = esperar)
 ```
-- **Lembrar a última seleção** (`last`): o rEFInd inicia o que você escolheu da última vez (e o Linux na primeira). Funciona sem NVRAM: a escolha fica na pasta `vars` ao lado do rEFInd.
+- **Lembrar a última seleção** (`last`): o rEFInd é instruído a iniciar o que você escolheu da última vez (com o Linux como reserva). **Não é confiável em firmware sem NVRAM**: nos nossos testes só lembrou o Linux, nunca o Windows nem entradas próprias. Prefira um padrão fixo (`--default linux` ou `--default windows`).
 - **Entradas próprias com ícone**: o assistente encontra outros sistemas em partições FAT (ex.: Recalbox, Batocera) que o rEFInd mostraria como um "Fallback boot loader" genérico, deixa você dar um nome, escolher um ícone (ou usar um PNG seu) e esconde a entrada duplicada.
 - **Mouse/toque** no menu (`enable_mouse`). Controles (gamepads) *não* são vistos pelo UEFI, a menos que se apresentem como teclado/mouse de boot; veja as notas no repositório.
 
@@ -184,6 +205,16 @@ Para trocar a imagem ou a resolução depois:
 ```
 (ou a opção 2 do menu). Manualmente, copie `backgrounds/<resolução>/background.<nome>.png` para `themes/rEFInd-grayscale-minimal/background.png` na sua partição EFI.
 
+**Use a sua própria imagem:** escolha "4) Minha própria imagem" nesse menu, ou rode:
+```bash
+./install.sh --custom-background /caminho/da/foto.jpg
+```
+Depois você escolhe a resolução e se quer manter as cores (padrão: cinza, para combinar com o tema). A imagem é recortada em 16:9 a partir do centro, ajustada à resolução escolhida, sem transparência e com os canais limitados a 4-251, e salva como PNG em `backgrounds/custom/` (fora do Git). Precisa do Pillow do Python, e o instalador oferece instalar. Para o melhor resultado use uma imagem pelo menos do tamanho da resolução da sua tela; nunca use JPEG como arquivo final (a ferramenta já gera PNG).
+
+### 🖼️ Ícones
+
+`icons/` tem os ícones brancos usados pelo tema (incluindo `os_gamepad.png` para consoles retrô e `os_tails.png`, um ícone genérico de privacidade). `icons-black/` tem os mesmos ícones em preto puro, para fundos claros; para usá-los, copie essa pasta sobre `themes/rEFInd-grayscale-minimal/icons/` na sua partição EFI. Gere-os de novo com `python3 tools/make_icons.py` (precisa do Pillow).
+
 ### 🗑️ Desinstalação (via Script)
 
 Para remover o tema (e opcionalmente o próprio rEFInd):
@@ -202,5 +233,8 @@ Para remover o tema (e opcionalmente o próprio rEFInd):
 ### 📜 Créditos e Licença
 
 * **Planos de Fundo:** Gerados no Gemini Nano Banana 2. Mais planos de fundo em breve!
-* **Ícones:** Os ícones base e as bordas de seleção foram retirados do lindo tema [rEFInd-minimal-rog](https://github.com/Paradox-AT/rEFInd-minimal-rog) criado por Paradox-AT.
-* **Licença:** Este projeto é de código aberto e está disponível sob a Licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+* **Ícones:** Os ícones base e as bordas de seleção foram retirados do lindo tema [rEFInd-minimal-rog](https://github.com/Paradox-AT/rEFInd-minimal-rog) criado por Paradox-AT, licenciado sob a Licença MIT (mantenha o aviso de copyright dele ao redistribuir).
+* **Fonte:** os arquivos em `fonts/` são imagens de glifos geradas a partir do [Ubuntu Mono](https://design.ubuntu.com/font) (Canonical), distribuído sob a [Ubuntu Font Licence 1.0](https://ubuntu.com/legal/font-licence). São obras derivadas; veja a licença para os termos.
+* **rEFInd:** o gerenciador de boot é de Roderick W. Smith e tem licença GPL v3 e outras. Este projeto não o inclui: instala o pacote da sua distribuição.
+* **Aviso sobre as imagens:** os fundos gerados por IA podem mostrar uma pequena marca d'água do gerador em um canto. Confira os termos da ferramenta que os gerou antes de redistribuir.
+* **Licença:** os scripts e os arquivos próprios do projeto estão disponíveis sob a Licença MIT. Veja o arquivo `LICENSE` para mais detalhes. O material de terceiros acima mantém as suas licenças.

@@ -40,7 +40,7 @@ BYTES=$(cat "$TMPD/bytes"); HASH=$(cat "$TMPD/hash")
 echo "    Tamanho descomprimido: $BYTES bytes ($((BYTES / 1048576)) MiB)"
 echo "    SHA-256: $HASH"
 if [ -f "$IMG.sha256" ]; then
-    grep -q "$HASH" "$IMG.sha256" && echo "    Confere com $IMG.sha256" || die "Hash diferente de $IMG.sha256."
+    if grep -q "$HASH" "$IMG.sha256"; then echo "    Confere com $IMG.sha256"; else die "Hash diferente de $IMG.sha256."; fi
 fi
 
 # --- 2. Detectar o disco de destino ---

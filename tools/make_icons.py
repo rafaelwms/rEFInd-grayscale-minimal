@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Gera icons/os_gamepad.png: ícone monocromático (branco, fundo transparente, 320x320) no estilo
-dos demais ícones do tema, para consoles/retrogaming (ex.: Recalbox, Batocera, RetroPie).
+"""Gera icons/os_gamepad.png e icons/os_tails.png (brancos, fundo transparente, 320x320) no estilo
+dos demais ícones do tema (consoles/retrogaming e sistemas de privacidade), e icons-black/ com todos os ícones em preto.
 
 Só para desenvolvimento (o instalador apenas copia o PNG). Requer Pillow.
 Uso: python3 tools/make_icons.py [--force]
@@ -46,14 +46,56 @@ def gamepad():
     return im.resize((S, S), Image.LANCZOS)
 
 
+def tails():
+    """Ícone genérico de privacidade (chapéu + óculos), desenho próprio: não usa o logotipo do Tails."""
+    n = S * SCALE
+    im = Image.new("RGBA", (n, n), T)
+    d = ImageDraw.Draw(im)
+    k = SCALE
+
+    # chapéu: aba larga + copa
+    d.rounded_rectangle((40 * k, 150 * k, 280 * k, 176 * k), radius=13 * k, fill=W)
+    d.rounded_rectangle((90 * k, 56 * k, 230 * k, 160 * k), radius=22 * k, fill=W)
+    # faixa do chapéu (recorte)
+    d.rectangle((90 * k, 126 * k, 230 * k, 138 * k), fill=T)
+    # óculos: duas lentes e a ponte
+    for cx in (110 * k, 210 * k):
+        d.ellipse((cx - 38 * k, 196 * k, cx + 38 * k, 266 * k), fill=W)
+        d.ellipse((cx - 24 * k, 208 * k, cx + 24 * k, 254 * k), fill=T)
+    d.rounded_rectangle((140 * k, 222 * k, 180 * k, 236 * k), radius=7 * k, fill=W)
+
+    return im.resize((S, S), Image.LANCZOS)
+
+
+def make_black(icons_dir, out_dir):
+    """Cópia de cada ícone em preto puro, preservando o alfa (para fundos claros).
+    Os quadros de seleção (selection_*.png) ficam de fora: são translúcidos e não são ícones."""
+    os.makedirs(out_dir, exist_ok=True)
+    count = 0
+    for name in sorted(os.listdir(icons_dir)):
+        if not name.endswith(".png") or name.startswith("selection_"):
+            continue
+        src = Image.open(os.path.join(icons_dir, name)).convert("RGBA")
+        black = Image.new("RGBA", src.size, (0, 0, 0, 0))
+        black.putalpha(src.getchannel("A"))
+        black.save(os.path.join(out_dir, name), optimize=True)
+        count += 1
+    return count
+
+
 def main():
-    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons")
-    out = os.path.join(root, "os_gamepad.png")
-    if os.path.exists(out) and "--force" not in sys.argv[1:]:
-        print("já existe, não sobrescrevi:", os.path.normpath(out), "(use --force para regerar)")
-        return 0
-    gamepad().save(out, optimize=True)
-    print("gerado:", os.path.normpath(out))
+    force = "--force" in sys.argv[1:]
+    root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icons"))
+    for name, fn in (("os_gamepad.png", gamepad), ("os_tails.png", tails)):
+        out = os.path.join(root, name)
+        if os.path.exists(out) and not force:
+            print("já existe, não sobrescrevi:", out, "(use --force para regerar)")
+            continue
+        fn().save(out, optimize=True)
+        print("gerado:", out)
+    # versão preta de todos os ícones (sempre regerada a partir de icons/)
+    out_dir = os.path.normpath(os.path.join(root, "..", "icons-black"))
+    print(f"{make_black(root, out_dir)} ícones pretos em {out_dir}")
 
 
 if __name__ == "__main__":
