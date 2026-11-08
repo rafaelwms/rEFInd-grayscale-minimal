@@ -243,6 +243,7 @@ show_status() {
     $SUDO test -f "$ESP/EFI/Microsoft/Boot/bootmgfw.efi" && echo "Windows boot manager on this ESP: yes" || echo "Windows boot manager on this ESP: no"
     echo "-- disks --"; lsblk -o NAME,SIZE,FSTYPE,PARTTYPENAME,LABEL,MOUNTPOINT 2>/dev/null | grep -v loop
     has_nvram && command -v efibootmgr >/dev/null && { echo "-- efibootmgr --"; $SUDO efibootmgr 2>/dev/null; }
+    root_fs_warning || true
 }
 
 # Apaga os screenshots do F10 do rEFInd (screenshot_NNN.bmp na raiz da ESP; ~25 MB cada em 4K).
@@ -432,6 +433,30 @@ add_menu_entry() {
     m "Entry added: $name" "Entrada adicionada: $name"
 }
 
+# Liga/desliga o "não escanear" de um volume Linux (dont_scan_volumes). Mexe só em MENU_HIDE; vale ao aplicar.
+hide_volume_menu() {
+    local vols=() v i=1 n dev fs label puuid size e found
+    mapfile -t vols < <(scan_linux_volumes)
+    if [ "${#vols[@]}" -eq 0 ]; then m "No ext4/btrfs/xfs volumes found." "Nenhum volume ext4/btrfs/xfs encontrado."; return 0; fi
+    echo ""
+    m "If rEFInd shows \"Error: Volume Corrupt ... ext4 volume\" and waits for a key before the menu, and your Linux starts through GRUB, hide that volume." \
+      "Se o rEFInd mostra \"Error: Volume Corrupt ... ext4 volume\" e espera uma tecla antes do menu, e o seu Linux inicia pelo GRUB, esconda esse volume."
+    m "Do NOT hide the volume if rEFInd must read your kernels from /boot (e.g. boards without GRUB)." \
+      "NÃO esconda o volume se o rEFInd precisa ler os seus kernels em /boot (ex.: placas sem GRUB)."
+    for v in "${vols[@]}"; do
+        IFS='|' read -r dev fs label puuid size <<<"$v"
+        found=""; for e in "${MENU_HIDE[@]}"; do [ "${e%%|*}" = "$puuid" ] && found=1; done
+        echo "$i) $dev  $fs  $size  ${label}  $([ -n "$found" ] && m '[hidden]' '[escondido]')"; i=$((i+1))
+    done
+    read -r -p "$(m 'Number to hide/show (ENTER = none): ' 'Número para esconder/mostrar (ENTER = nenhum): ')" n
+    [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le "${#vols[@]}" ] || return 0
+    IFS='|' read -r dev fs label puuid size <<<"${vols[$((n-1))]}"
+    found=""; local keep=()
+    for e in "${MENU_HIDE[@]}"; do if [ "${e%%|*}" = "$puuid" ]; then found=1; else keep+=("$e"); fi; done
+    if [ -n "$found" ]; then MENU_HIDE=("${keep[@]}")
+    else MENU_HIDE=("${keep[@]}" "$puuid|$dev $fs $size${label:+ $label}"); fi
+}
+
 boot_menu() {
     [ -z "${LANG_OPT:-}" ] && select_language
     ESP=$(find_esp) || { m "ESP not found." "ESP não encontrada."; return 1; }
@@ -447,13 +472,15 @@ boot_menu() {
         echo "  $(m 'Timeout      :' 'Espera       :') $([ "$MENU_POLICY" = none ] && echo '-' || echo "${MENU_TIMEOUT}s")"
         echo "  $(m 'Mouse/touch  :' 'Mouse/toque  :') $MENU_MOUSE"
         i=1; for e in "${MENU_ENTRIES[@]}"; do IFS='|' read -r name _ <<<"$e"; echo "  $(m 'Custom entry' 'Entrada própria') $i: $name"; i=$((i+1)); done
+        for e in "${MENU_HIDE[@]}"; do echo "  $(m 'Hidden volume:' 'Volume escondido:') ${e#*|}"; done
         echo ""
         m "1) Default system" "1) Sistema padrão"
         m "2) Timeout (seconds)" "2) Tempo de espera (segundos)"
         m "3) Add a custom entry (e.g. Recalbox) with an icon" "3) Adicionar entrada própria (ex.: Recalbox) com ícone"
         m "4) Remove a custom entry" "4) Remover entrada própria"
         m "5) Mouse/touch in the menu (on/off)" "5) Mouse/toque no menu (liga/desliga)"
-        m "6) Apply and exit" "6) Aplicar e sair"
+        m "6) Hide/show a Linux volume from rEFInd's scan (fixes \"Volume Corrupt\" at boot)" "6) Esconder/mostrar um volume Linux do scan do rEFInd (corrige \"Volume Corrupt\" no boot)"
+        m "7) Apply and exit" "7) Aplicar e sair"
         m "0) Exit without applying" "0) Sair sem aplicar"
         read -r -p "$(m 'Option: ' 'Opção: ')" opt
         case $opt in
@@ -477,7 +504,8 @@ boot_menu() {
                    unset 'MENU_ENTRIES[n-1]'; MENU_ENTRIES=("${MENU_ENTRIES[@]}")
                fi ;;
             5) [ "$MENU_MOUSE" = on ] && MENU_MOUSE=off || MENU_MOUSE=on ;;
-            6) apply_menu; m "Done. Takes effect on the next boot." "Pronto. Vale a partir do próximo boot."; return 0 ;;
+            6) hide_volume_menu ;;
+            7) apply_menu; m "Done. Takes effect on the next boot." "Pronto. Vale a partir do próximo boot."; return 0 ;;
             0) m "Nothing changed." "Nada foi alterado."; return 0 ;;
         esac
     done

@@ -49,6 +49,9 @@ Notas pessoais de máquinas/discos ficam em `CLAUDE.local.md` (não versionado).
   Windows nem entradas manuais. Preferir padrão fixo (`--default linux|windows`). Sem a linha `default_selection`, o rEFInd escolhe a primeira entrada (Windows).
   A política "Linux" usa `LINUX_MATCH` (lib.sh): `vmlinuz,Image,ubuntu,shim,grub`; só `vmlinuz` não casava no Desktop x86 (Ubuntu inicia pelo shim) e caía no Windows.
 
+- **Erro "Volume Corrupt ... ext4 volume" no boot** (Desktop x86, após atualização do Ubuntu): o driver ext4 do rEFInd 0.14.2 não lê a raiz (ext4 com `metadata_csum_seed` + `orphan_file`; FS está limpo). Remover `ext4_x64.efi` NÃO resolveu (a leitura vinha de outro lugar, sem driver na ESP nem variável Driver####).
+  **Resolveu**: `dont_scan_volumes LRS_ESP,<PARTUUID da raiz>` (a lista substitui o padrão `LRS_ESP`, repetir). Implementado no assistente (`--boot-menu` opção 6, metadado `#@ hide=PARTUUID|descrição`) e aviso no `--status` (`root_fs_warning`). Não esconder onde o rEFInd lê kernels de `/boot` (Radxa).
+
 ## Estado dos testes (diga isso no README)
 - Validado: instalação/desinstalação em arm64 sem NVRAM, tema e fundos em 1080p/1440p/4K, `--update`, `--status`, `--clean-screenshots`, `--windows-loader`,
   `merge-linux.sh` (x86_64), `portable.sh` em UEFI, menu de boot com entrada própria.

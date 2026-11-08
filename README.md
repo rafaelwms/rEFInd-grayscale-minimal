@@ -55,6 +55,7 @@ Some ARM firmwares expose no EFI variables, so `refind-install` copies files but
 ```
 - **Remember the last selection** (`last`): rEFInd is asked to boot whatever you picked last time (falling back to Linux). **Unreliable on firmware without NVRAM**: in our tests it only remembered Linux, never Windows or custom entries. Prefer a fixed default (`--default linux` or `--default windows`).
 - **Custom entries with an icon**: the wizard finds other systems on FAT partitions (e.g. Recalbox, Batocera) that rEFInd would show as a generic "Fallback boot loader", lets you name them, pick an icon (or use your own PNG) and hides the duplicate.
+- **"Volume Corrupt" at boot / Erro "Volume Corrupt" no boot**: if rEFInd shows `Error: Volume Corrupt while scanning the boot directory on ... ext4 volume` and waits for a key before the menu, its ext4 driver cannot read that Linux volume (seen with ext4 using `metadata_csum_seed`/`orphan_file`). When your Linux starts through GRUB you do not need rEFInd to read it: use option 6 of `./install.sh --boot-menu` to hide that volume from the scan (it writes `dont_scan_volumes`). Do **not** hide it where rEFInd must read your kernels from `/boot` (e.g. Radxa). `./install.sh --status` warns when your root has those features.
 - **Mouse/touch** in the menu (`enable_mouse`). Gamepads are *not* seen by UEFI unless they present themselves as a boot keyboard/mouse; see the notes in the repository.
 
 ### 🛠️ Manual Installation (Theme Only)
@@ -179,6 +180,7 @@ Alguns firmwares ARM não expõem variáveis EFI: o `refind-install` copia os ar
 ```
 - **Lembrar a última seleção** (`last`): o rEFInd é instruído a iniciar o que você escolheu da última vez (com o Linux como reserva). **Não é confiável em firmware sem NVRAM**: nos nossos testes só lembrou o Linux, nunca o Windows nem entradas próprias. Prefira um padrão fixo (`--default linux` ou `--default windows`).
 - **Entradas próprias com ícone**: o assistente encontra outros sistemas em partições FAT (ex.: Recalbox, Batocera) que o rEFInd mostraria como um "Fallback boot loader" genérico, deixa você dar um nome, escolher um ícone (ou usar um PNG seu) e esconde a entrada duplicada.
+- **Erro "Volume Corrupt" no boot**: se o rEFInd mostra `Error: Volume Corrupt while scanning the boot directory on ... ext4 volume` e espera uma tecla antes do menu, o driver ext4 dele não consegue ler esse volume Linux (visto com ext4 que usa `metadata_csum_seed`/`orphan_file`). Quando o seu Linux inicia pelo GRUB, o rEFInd não precisa lê-lo: use a opção 6 do `./install.sh --boot-menu` para esconder esse volume do scan (grava `dont_scan_volumes`). **Não** esconda onde o rEFInd precisa ler os kernels em `/boot` (ex.: Radxa). O `./install.sh --status` avisa quando a sua raiz tem esses recursos.
 - **Mouse/toque** no menu (`enable_mouse`). Controles (gamepads) *não* são vistos pelo UEFI, a menos que se apresentem como teclado/mouse de boot; veja as notas no repositório.
 
 ### 🛠️ Instalação Manual (Apenas o Tema)

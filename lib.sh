@@ -299,6 +299,7 @@ menu_reset() {
     MENU_TIMEOUT=20         # segundos; -1 = esperar a escolha
     MENU_MOUSE=off          # on|off (enable_mouse: mouse e dispositivos apontadores)
     MENU_ENTRIES=()         # "Nome|ícone|PARTUUID|/caminho/loader.efi|RÓTULO-DO-VOLUME"
+    MENU_HIDE=()            # "PARTUUID|descrição": volumes que o rEFInd não deve escanear (dont_scan_volumes)
 }
 
 # menu_read <refind.conf>: carrega o estado do bloco (ou os padrões, se não houver)
@@ -317,6 +318,7 @@ menu_read() {
             "#@ timeout="*)  MENU_TIMEOUT=${line#"#@ timeout="} ;;
             "#@ mouse="*)    MENU_MOUSE=${line#"#@ mouse="} ;;
             "#@ entry="*)    MENU_ENTRIES+=("${line#"#@ entry="}") ;;
+            "#@ hide="*)     MENU_HIDE+=("${line#"#@ hide="}") ;;
         esac
     done < <($SUDO sed -n "\|^${MARK_MENU_BEGIN}\$|,\|^${MARK_MENU_END}\$|p" "$conf")
 }
@@ -334,7 +336,7 @@ menu_policy_text() {
 
 # menu_write <dir_do_refind>: reescreve o bloco do menu em <dir>/refind.conf. Requer $ESP definido.
 menu_write() {
-    local dir="$1" conf="$1/refind.conf" rel e name icon puuid loader label iconpath hide=""
+    local dir="$1" conf="$1/refind.conf" rel e name icon puuid loader label iconpath hide="" vols
     rel="${dir#"$ESP"}"
     # remove o bloco antigo; o bloco do modo Windows não pode mais decidir o padrão/tempo (conflitaria)
     $SUDO sed -i "\|^${MARK_MENU_BEGIN}\$|,\|^${MARK_MENU_END}\$|d" "$conf"
@@ -344,6 +346,7 @@ menu_write() {
         echo "#@ policy=$MENU_POLICY"; echo "#@ fallback=$MENU_FALLBACK"
         echo "#@ timeout=$MENU_TIMEOUT"; echo "#@ mouse=$MENU_MOUSE"
         for e in "${MENU_ENTRIES[@]}"; do echo "#@ entry=$e"; done
+        for e in "${MENU_HIDE[@]}"; do echo "#@ hide=$e"; done
         case $MENU_POLICY in
             none)     echo "timeout -1" ;;
             last)     echo "timeout $MENU_TIMEOUT"; echo "default_selection \"+,$MENU_FALLBACK\"" ;;
@@ -352,6 +355,10 @@ menu_write() {
             custom:*) echo "timeout $MENU_TIMEOUT"; echo "default_selection \"${MENU_POLICY#custom:}\"" ;;
         esac
         [ "$MENU_MOUSE" = on ] && echo "enable_mouse true"
+        if [ "${#MENU_HIDE[@]}" -gt 0 ]; then   # a lista substitui o padrão do rEFInd (LRS_ESP), por isso é repetido
+            vols=LRS_ESP; for e in "${MENU_HIDE[@]}"; do vols="$vols,${e%%|*}"; done
+            echo "dont_scan_volumes $vols"
+        fi
         for e in "${MENU_ENTRIES[@]}"; do
             IFS='|' read -r name icon puuid loader label <<<"$e"
             case $icon in
@@ -364,6 +371,33 @@ menu_write() {
         [ -n "$hide" ] && echo "dont_scan_dirs + ${hide#,}"   # o "+" SEPARADO = acrescenta à lista
         printf '%s\n' "$MARK_MENU_END"
     } | $SUDO tee -a "$conf" >/dev/null
+}
+
+# scan_linux_volumes: lista "dispositivo|sistema de arquivos|rótulo|PARTUUID|tamanho" das partições ext4/btrfs/xfs/f2fs.
+# São as que o driver do rEFInd lê e que podem falhar ("Volume Corrupt") em máquinas onde o Linux inicia pelo GRUB.
+scan_linux_volumes() {
+    local dev fs label puuid size
+    while read -r dev fs label puuid size; do
+        case $fs in ext4|btrfs|xfs|f2fs) ;; *) continue ;; esac
+        [ -n "$puuid" ] || continue
+        echo "$dev|$fs|$(printf '%b' "${label:--}")|$puuid|$size"
+    done < <(lsblk -nrpo NAME,FSTYPE,LABEL,PARTUUID,SIZE 2>/dev/null)
+}
+
+# root_fs_warning: avisa se a raiz é ext4 com recursos que o driver ext4 do rEFInd pode recusar.
+root_fs_warning() {
+    local src feats
+    src=$(findmnt -n -o SOURCE / 2>/dev/null) || return 1
+    [ "$(findmnt -n -o FSTYPE / 2>/dev/null)" = ext4 ] || return 1
+    feats=$($SUDO tune2fs -l "$src" 2>/dev/null | sed -n 's/^Filesystem features:[[:space:]]*//p')
+    case " $feats " in
+        *" metadata_csum_seed "*|*" orphan_file "*)
+            m "NOTE: the root filesystem ($src) uses $(echo "$feats" | tr ' ' '\n' | grep -E '^(metadata_csum_seed|orphan_file)$' | paste -sd' ' -)." \
+              "AVISO: a raiz ($src) usa $(echo "$feats" | tr ' ' '\n' | grep -E '^(metadata_csum_seed|orphan_file)$' | paste -sd' ' -)."
+            m "rEFInd's ext4 driver may fail on it (\"Volume Corrupt\" at boot, asking for a key). If Linux starts through GRUB, hide it: ./install.sh --boot-menu -> 6." \
+              "O driver ext4 do rEFInd pode falhar nela (\"Volume Corrupt\" no boot, pedindo uma tecla). Se o Linux inicia pelo GRUB, esconda-a: ./install.sh --boot-menu -> 6." ;;
+        *) return 1 ;;
+    esac
 }
 
 # scan_other_loaders: lista "dispositivo|rótulo|PARTUUID|caminho" dos carregadores de fallback
